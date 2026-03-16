@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ourSpace</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #playground {
+            display: block;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="playground">
+    </canvas>
+
+    <script>
+        const playgorund = document.getElementById('playground');
+        const ctx = playground.getContext("2d");
+
+        let W = 0, H = 0; // larghezza ed altezza del canvas
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            playground.width = W;
+            playground.height = H;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        let me = {
+            x: W/2,
+            y: H/2,
+            speed: 5,
+            fill: randomFill(),
+        };
+        let others = []; // TODO riempire con i dati che arrivano dal server
+
+        function draw() {
+            // gestione movimento
+            if (goingUp) me.y -= me.speed;
+            if (goingLeft) me.x -= me.speed;
+            if (goingDown) me.y += me.speed;
+            if (goingRight) me.x += me.speed;
+
+            // pulisci lo sfondo
+            ctx.beginPath();
+            ctx.rect(0, 0, W, H);
+            ctx.fillStyle = "#111";
+            ctx.fill();
+
+            others.forEach(drawPerson);
+            drawPerson(me);
+
+            requestAnimationFrame(draw);
+        }
+        requestAnimationFrame(draw);
+
+
+        const personW = 40;
+        const personH = 70;
+        function drawPerson(person) {
+            ctx.beginPath();
+            ctx.rect(
+                person.x - personW/2,
+                person.y - personH/2,
+                personW, personH
+            );
+            ctx.fillStyle = me.fill;
+            ctx.fill();
+        }
+
+        const socket = new WebSocket(`ws://localhost:4242`);
+        socket.addEventListener("message", async event => {
+            // TODO aggiornare lo stato in base ai messaggi del server
+        });
+
+        // TODO spostare la gestione dei movimenti sul server
+        let goingUp = false;
+        let goingLeft = false;
+        let goingDown = false;
+        let goingRight = false;
+
+        document.addEventListener("keydown", (event) => {
+            if (event.code == "KeyW") goingUp = true;
+            else if (event.code == "KeyA") goingLeft = true;
+            else if (event.code == "KeyS") goingDown = true;
+            else if (event.code == "KeyD") goingRight = true;
+        });
+        document.addEventListener("keyup", (event) => {
+            if (event.code == "KeyW") goingUp = false;
+            else if (event.code == "KeyA") goingLeft = false;
+            else if (event.code == "KeyS") goingDown = false;
+            else if (event.code == "KeyD") goingRight = false;
+        });
+
+        // colore random
+        function randomFill() {
+            const hue = Math.random() * 360; // da 0 a 360
+            const saturation = 100; // da 0 a 100
+            const lightness = 67; // da 0 a 100
+            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        }
+    </script>
+</body>
+</html>
