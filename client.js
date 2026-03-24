@@ -461,7 +461,6 @@ function drawPersona6(x, y, w, h, style = {}) {
 }
 
 
-
 function drawNormalGuy(x, y, w, h, style = {}) {
     ctx.save();
 
@@ -1114,6 +1113,76 @@ function drawPersona7(x, y, w, h, style = {}) {
     ctx.fillRect(startX - 3, legStartY + legH - 2, legW + 6, 2);
     ctx.fillRect(startX + w - legW - 3, legStartY + legH - 2, legW + 6, 2);
     ctx.shadowBlur = 0;
+
+    ctx.restore();
+}
+
+
+function drawpersona4(x, y, w, h, style = {}) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    const startX = -w / 2;
+    const startY = -h / 2;
+
+    const headH = h * 0.3;
+    const bodyH = h * 0.35;
+    const legH = h - headH - bodyH;
+
+    // testa o croce
+    ctx.beginPath();
+    ctx.fillStyle = "#f5cba7";
+    ctx.rect(startX, startY, w, headH);
+    ctx.fill();
+
+    // capelli
+    ctx.beginPath();
+    ctx.fillStyle = "#c87b08";
+    ctx.rect(startX, startY, w, headH * 0.35);
+    ctx.fill();
+
+    // occhi
+    ctx.fillStyle = "#000";
+    ctx.fillRect(startX + w * 0.25, startY + headH * 0.55, 4, 4);
+    ctx.fillRect(startX + w * 0.65, startY + headH * 0.55, 4, 4);
+
+    // corpo
+    const bodyStartY = startY + headH;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#09c1da";
+    ctx.rect(startX, bodyStartY, w, bodyH);
+    ctx.fill();
+
+    // bracciaaa
+    const armLen = w * 0.4;
+    ctx.beginPath();
+    ctx.fillStyle = "#f5cba7";
+    ctx.rect(startX - armLen, bodyStartY, armLen, bodyH * 0.3);
+    ctx.rect(startX + w, bodyStartY, armLen, bodyH * 0.3);
+    ctx.fill();
+
+    // gambine
+    const legStartY = bodyStartY + bodyH;
+    const legW = w * 0.35;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#2c3e50";
+    ctx.rect(startX, legStartY, legW, legH);
+    ctx.rect(startX + w - legW, legStartY, legW, legH);
+    ctx.fill();
+
+    // scarpe
+    ctx.beginPath();
+    ctx.fillStyle = "#000";
+    ctx.rect(startX, legStartY + legH - 5, legW, 5);
+    ctx.rect(startX + w - legW, legStartY + legH - 5, legW, 5);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.rect(startX, startY, w, h);
+    ctx.strokeStyle = "#f620ef";
+    ctx.stroke();
 
     ctx.restore();
 }
