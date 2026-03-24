@@ -75,6 +75,69 @@ const characters = {
     normalGuy: drawNormalGuy,
 }
 
+function drawPersona6(x, y, w, h, style = {}) {
+    ctx.save();
+
+    ctx.translate(x, y);
+    const startX = -w/2;
+    const startY = -h/2;
+
+    // ================= HEAD =================
+    const headH = h * 0.3;
+
+    // faccia
+    ctx.fillStyle = "#eaa66e";
+    ctx.fillRect(startX, startY, w, headH);
+
+    // capelli (base)
+    ctx.fillStyle = "#f4c542";
+    ctx.fillRect(startX, startY, w, headH * 0.25);
+
+    // ciuffo laterale (più caratteristico)
+    ctx.fillRect(startX + w*0.5, startY - headH*0.15, w*0.6, headH*0.25);
+
+    // occhi
+    ctx.fillStyle = "#000";
+    const eyeSize = w * 0.08;
+    ctx.fillRect(startX + w*0.25, startY + headH*0.45, eyeSize, eyeSize);
+    ctx.fillRect(startX + w*0.65, startY + headH*0.45, eyeSize, eyeSize);
+
+    // ================= BODY =================
+    const bodyStartY = startY + headH;
+    const bodyH = h * 0.35;
+    const armLen = 0.4 * w;
+
+    // giacca
+    ctx.fillStyle = "#1c1f3a";
+    ctx.fillRect(startX, bodyStartY, w, bodyH);
+
+    // maniche
+    ctx.fillRect(startX - armLen, bodyStartY, armLen, bodyH * 0.85);
+    ctx.fillRect(startX + w, bodyStartY, armLen, bodyH * 0.85);
+
+    // camicia (centro)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(startX + w*0.4, bodyStartY, w*0.2, bodyH * 0.4);
+
+    // cravatta
+    ctx.fillStyle = "#c51d1d";
+    ctx.fillRect(startX + w*0.45, bodyStartY, w*0.1, bodyH * 0.7);
+
+    // ================= LEGS =================
+    const legH = h - headH - bodyH;
+    const legStartY = bodyStartY + bodyH;
+    const legW = w * 0.35;
+
+    ctx.fillStyle = "#111";
+    ctx.fillRect(startX, legStartY, legW, legH);
+    ctx.fillRect(startX + w - legW, legStartY, legW, legH);
+
+
+    ctx.restore();
+}
+
+
+
 function drawNormalGuy(x, y, w, h, style = {}) {
     ctx.save();
 
@@ -107,7 +170,7 @@ function drawNormalGuy(x, y, w, h, style = {}) {
     ctx.fillStyle = "#04097f";
     ctx.rect(startX, bodyStartY, w, bodyH); // body
     ctx.rect(startX - armLen, bodyStartY, armLen, 0.35*bodyH); // left arm
-    ctx.rect(startX + w, bodyStartY, armLen, 0.35*bodyH); // left arm
+    ctx.rect(startX + w, bodyStartY, armLen, 0.35*bodyH); // right arm
     ctx.fill();
     // -body
 
