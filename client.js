@@ -21,8 +21,8 @@ resize();
 window.addEventListener('resize', resize);
 
 let me = {
-    x: W / 2,
-    y: H / 2,
+    x: screenW / 2,
+    y: screenH / 2,
     x: 0,
     y: 0,
     speed: 5,
