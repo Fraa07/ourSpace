@@ -1,6 +1,8 @@
 const playground = document.getElementById('playground');
 const ctx = playground.getContext("2d");
 
+const mod = (n, m) => ((n % m) + m) % m;
+
 let screenW = 0, screenH = 0; // larghezza ed altezza del canvas
 const worldW = 1000, worldH = 600; // larghezza ed altezza dello spazio di gioco
 const worldBounds = {
@@ -20,57 +22,183 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-let me = {
-    x: screenW / 2,
-    y: screenH / 2,
-    x: 0,
-    y: 0,
-    speed: 5,
-    character: 'normalGuy'  
-};
-let others = []; // TODO riempire con i dati che arrivano dal server
+let me = null;
+let people = []; // TODO riempire con i dati che arrivano dal server
 
 const personW = 40;
 const personH = 120;
 
-function draw() {
-    // gestione movimento
-    if (goingUp) me.y -= me.speed;
-    if (goingLeft) me.x -= me.speed;
-    if (goingDown) me.y += me.speed;
-    if (goingRight) me.x += me.speed;
+function createButton(text, onclick, colors = {}) {
+    // +state
+    let rect = { x: 0, y: 0, w: 0, h: 0 };
+    let isPressed = false;
+    // -state
 
-    // controllo che il giocatore non esca dallo spazio di gioco
-    if (me.y - personH/2 < worldBounds.top) me.y = worldBounds.top + personH/2;
-    if (me.y + personH/2 > worldBounds.bottom) me.y = worldBounds.bottom - personH/2;
-    if (me.x - personW/2 < worldBounds.left) me.x = worldBounds.left + personW/2;
-    if (me.x + personW/2 > worldBounds.right) me.x = worldBounds.right - personW/2;
+    // +click_handling
+    const getPointerPos = (e) => {
+        const bounds = playground.getBoundingClientRect();
+        return {
+            x: e.clientX - bounds.left - screenW/2,
+            y: e.clientY - bounds.top - screenH/2
+        };
+    };
+    const isInside = (pos) => {
+        return pos.x >= rect.x && pos.x <= rect.x + rect.w &&
+               pos.y >= rect.y && pos.y <= rect.y + rect.h;
+    };
+    playground.addEventListener('pointerdown', (e) => {
+        if (isInside(getPointerPos(e))) {
+            isPressed = true;
+        }
+    });
+    playground.addEventListener('pointerup', (e) => {
+        if (isPressed && isInside(getPointerPos(e))) {
+            onclick();
+        }
+        isPressed = false;
+    });
+    playground.addEventListener('pointercancel', () => isPressed = false);
+    window.addEventListener('pointerup', () => isPressed = false);
+    // -click_handling
 
-    // la camera segue il giocatore
-    camera.x = me.x;
-    camera.y = me.y;
+    const drawButton = (newRect, ctx) => {
+        rect = newRect; 
 
-    // pulisci lo schermo
-    ctx.beginPath();
-    ctx.rect(0, 0, screenW, screenH);
-    ctx.fillStyle = "#000";
-    ctx.fill();
+        const mainColor = colors.main || "#d18800";
+        const textColor = colors.text || "#e6e6e6";
+        const shadowColor = colors.shadow || "#161616";
 
-    ctx.save(); // sistema di coordinate world-space
-        ctx.translate(screenW/2, screenH/2); // centra lo schermo
-        ctx.scale(camera.zoom, camera.zoom); // applica lo zoom
-        ctx.translate(-camera.x, -camera.y); // sposta relativamente alla camera
+        const { x, y, w, h } = rect;
+        const shadowOffset = Math.min(w, h) * 0.07;
+        const pushOffset = isPressed ? shadowOffset * 0.5 : 0;
 
-        // disegna lo sfondo del "mondo" (campo da gioco)
+        // ombra
         ctx.beginPath();
-        ctx.rect(worldBounds.left, worldBounds.top, worldW, worldH);
-        ctx.fillStyle = "#58a515";
+        ctx.rect(x + shadowOffset, y + shadowOffset, w, h);
+        ctx.fillStyle = shadowColor;
         ctx.fill();
 
-        others.forEach(p => drawPerson(p.x, p.y, personW, personH, p.character));
-        drawPerson(me.x, me.y, personW, personH, me.character);
-    ctx.restore();
+        // bottone
+        ctx.beginPath();
+        ctx.rect(x + pushOffset, y + pushOffset, w, h);
+        ctx.fillStyle = mainColor;
+        ctx.fill();
 
+        // testo
+        ctx.fillStyle = textColor;
+        ctx.font = `bold ${Math.floor(Math.min(w, h) * 0.5)}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, x + w / 2 + pushOffset, y + h / 2 + pushOffset);
+    }
+
+    return drawButton;
+}
+
+
+const characters = {
+    normalGuy: drawNormalGuy,
+    persona1: persona1,
+    persona2: drawPersona2,
+    persona4: drawPersona4,
+    persona6: drawPersona6,
+    persona7: drawPersona7,
+    persona8: drawPersonaggio8,
+    persona10: drawPersonaggio10,
+    persona11: draw11,
+    persona15: drawPersona15,
+    batman: drawBatman,
+    clashRoyaleKnight: drawClashRoyaleKnight,
+}
+
+const characterNames = Object.keys(characters);
+let selectedCharacterIdx = 0;
+
+const drawLeftBtn = createButton('<', () => {
+    selectedCharacterIdx = mod(selectedCharacterIdx + 1, characterNames.length);
+});
+const drawRightBtn = createButton('>', () => {
+    selectedCharacterIdx = mod(selectedCharacterIdx - 1, characterNames.length);
+});
+const drawOkBtn = createButton('ok', () => {
+    me = {
+        x: 0,
+        y: 0,
+        speed: 5,
+        character: characterNames[selectedCharacterIdx],
+    };
+}, { main: "#58a515" });
+
+
+function draw() {
+    if (me) {
+        // gestione movimento
+        if (goingUp) me.y -= me.speed;
+        if (goingLeft) me.x -= me.speed;
+        if (goingDown) me.y += me.speed;
+        if (goingRight) me.x += me.speed;
+
+        // controllo che il giocatore non esca dallo spazio di gioco
+        if (me.y - personH/2 < worldBounds.top) me.y = worldBounds.top + personH/2;
+        if (me.y + personH/2 > worldBounds.bottom) me.y = worldBounds.bottom - personH/2;
+        if (me.x - personW/2 < worldBounds.left) me.x = worldBounds.left + personW/2;
+        if (me.x + personW/2 > worldBounds.right) me.x = worldBounds.right - personW/2;
+
+        // la camera segue il giocatore
+        camera.x = me.x;
+        camera.y = me.y;
+
+        // pulisci lo schermo
+        ctx.beginPath();
+        ctx.rect(0, 0, screenW, screenH);
+        ctx.fillStyle = "#000";
+        ctx.fill();
+
+        ctx.save(); // sistema di coordinate world-space
+            ctx.translate(screenW/2, screenH/2); // centra lo schermo
+            ctx.scale(camera.zoom, camera.zoom); // applica lo zoom
+            ctx.translate(-camera.x, -camera.y); // sposta relativamente alla camera
+
+            // disegna lo sfondo del "mondo" (campo da gioco)
+            ctx.beginPath();
+            ctx.rect(worldBounds.left, worldBounds.top, worldW, worldH);
+            ctx.fillStyle = "#58a515";
+            ctx.fill();
+
+            if (me) drawPerson(me.x, me.y, personW, personH, me.character);
+        ctx.restore();
+    } else {
+        let side = Math.min(screenH, screenW);
+        ctx.save();
+            ctx.translate(screenW/2, screenH/2); // centra lo schermo
+
+            const borderWidth = 20;
+            ctx.beginPath();
+            ctx.rect(-side/2, -side/2, side, side);
+            ctx.clip();
+            ctx.strokeStyle = "#161616";
+            ctx.lineWidth = borderWidth;
+            ctx.fillStyle = "#acabab";
+            ctx.fill();
+            ctx.stroke();
+
+            const btnWidth = side * 0.1;
+            const btnHeight = side  * 0.4;
+            const btnSpacing = borderWidth + 5;
+            drawRightBtn({ x: side/2 - btnWidth - btnSpacing, y: -btnHeight/2, w: btnWidth, h: btnHeight }, ctx);
+            drawLeftBtn({ x: -side/2 + btnSpacing, y: -btnHeight/2, w: btnWidth, h: btnHeight }, ctx);
+
+            const characterName = characterNames[selectedCharacterIdx];
+            const characterH = side * 0.6;
+            const characterW = characterH * personW / personH;
+            drawPerson(0, 0, characterW, characterH, characterName);
+
+            const okBtnW = side * 0.4;
+            const okBtnH = side * 0.1;
+            drawOkBtn({ x: -okBtnW/2, y: side/2 - okBtnH - btnSpacing, w: okBtnW, h: okBtnH }, ctx);
+
+        ctx.restore();
+    }
     requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
@@ -119,8 +247,56 @@ window.addEventListener('wheel', (event) => {
     camera.zoom = Math.min(Math.max(minZoom, camera.zoom), maxZoom);
 }, { passive: false });
 
-const characters = {
-    normalGuy: drawNormalGuy
+function drawNormalGuy(x, y, w, h, style = {}) {
+    ctx.save();
+
+    // move origin (x=0, y=0) to the person center
+    ctx.translate(x, y);
+    const startX = -w/2;
+    const startY = -h/2;
+
+
+    // +head
+    const headH = h * 0.3;
+
+    ctx.beginPath();
+    ctx.fillStyle = style.skinColor || "#eaa66e";
+    ctx.rect(startX, startY, w, headH);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.fillStyle = "#151514";
+    ctx.rect(startX, startY, w, headH/4);
+    ctx.fill();
+    // -head
+
+    // +body
+    const bodyStartY = startY + headH;
+    const bodyH = h * 0.35;
+    const armLen = 0.4 * w;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#04097f";
+    ctx.rect(startX, bodyStartY, w, bodyH); // body
+    ctx.rect(startX - armLen, bodyStartY, armLen, 0.35*bodyH); // left arm
+    ctx.rect(startX + w, bodyStartY, armLen, 0.35*bodyH); // left arm
+    ctx.fill();
+    // -body
+
+    // +legs
+    const legH = h - headH - bodyH;
+    const legStartY = bodyStartY + bodyH;
+    const legW = w * 0.35;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#100712";
+    ctx.rect(startX, legStartY, w, legH/3); // top
+    ctx.rect(startX, legStartY, legW, legH); // left leg
+    ctx.rect(startX + w - legW, legStartY, legW, legH); // right leg
+    ctx.fill();
+    // -legs
+
+    ctx.restore();
 }
 
 function persona1(x, y, w, h, style = {}) {
@@ -188,13 +364,6 @@ function persona1(x, y, w, h, style = {}) {
     ctx.rect(startX + w - legW, legStartY, legW, legH); // right leg
     ctx.fill();
     // -legs
-
-    // +bounding box
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#c5022c";
-    ctx.stroke();
-    // -bounding box
 
     ctx.restore();
 }
@@ -387,15 +556,6 @@ function draw11(x, y, w, h, style = {}) {
     ctx.rect(startX + w * 0.42, legStartY, w * 0.16, beltH);
     ctx.fill();
 
-    // +bounding box
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
-    /*
-    */
-    // -bounding box
-
     ctx.restore();
 }
 
@@ -460,74 +620,11 @@ function drawPersona6(x, y, w, h, style = {}) {
     ctx.restore();
 }
 
-
-function drawNormalGuy(x, y, w, h, style = {}) {
-    ctx.save();
-
-    // move origin (x=0, y=0) to the person center
-    ctx.translate(x, y);
-    const startX = -w/2;
-    const startY = -h/2;
-
-
-    // +head
-    const headH = h * 0.3;
-
-    ctx.beginPath();
-    ctx.fillStyle = style.skinColor || "#eaa66e";
-    ctx.rect(startX, startY, w, headH);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.fillStyle = "#d90be0";
-    ctx.rect(startX, startY, w, headH/4);
-    ctx.fill();
-    // -head
-
-    // +body
-    const bodyStartY = startY + headH;
-    const bodyH = h * 0.35;
-    const armLen = 0.4 * w;
-
-    ctx.beginPath();
-    ctx.fillStyle = "#ff0000";
-    ctx.rect(startX, bodyStartY, w, bodyH); // body
-    ctx.rect(startX - armLen, bodyStartY, armLen, 0.35*bodyH); // left arm
-    ctx.rect(startX + w, bodyStartY, armLen, 0.35*bodyH); // right arm
-    ctx.fill();
-    // -body
-
-    // +legs
-    const legH = h - headH - bodyH;
-    const legStartY = bodyStartY + bodyH;
-    const legW = w * 0.35;
-
-    ctx.beginPath();
-    ctx.fillStyle = "#100712";
-    ctx.rect(startX, legStartY, w, legH/3); // top
-    ctx.rect(startX, legStartY, legW, legH); // left leg
-    ctx.rect(startX + w - legW, legStartY, legW, legH); // right leg
-    ctx.fill();
-    // -legs
-
-    // +bounding box
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
-    /*
-    */
-    // -bounding box
-
-    ctx.restore();
-}
-
 function drawPersonaggio10(x, y, w, h, style = {}) {
     ctx.save();
 
     ctx.translate(x, y);
-    const startX = -w / 2;
-    const startY = -h / 2;
+    const startY = -h * 0.4;
 
     const headH = h * 0.34;
     const bodyH = h * 0.36;
@@ -698,16 +795,8 @@ function drawPersonaggio8(x, y, w, h, style = {}) {
     ctx.clearRect(startX + legW, legStartY, w - (legW * 2), legH); 
     // -Gambe
 
-    // +Bounding box (Trasparente, per il debug)
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "rgba(255, 255, 0, 0.4)"; // Giallo per distinguerlo dagli altri
-    ctx.stroke();
-    // -Bounding box
-
     ctx.restore();
 }
-
 
 function drawPersona15(x, y, w, h, style = {}) {
     ctx.save();
@@ -783,13 +872,6 @@ function drawPersona15(x, y, w, h, style = {}) {
     ctx.rect(startX+w-legW, legStartY + legH*0.8, legW, legH*0.2);
     ctx.fill();
     // -LEGS
-
-    // +BOUNDING BOX
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
-    // -BOUNDING BOX
 
     ctx.restore();
 }
@@ -906,12 +988,6 @@ function drawBatman(x, y, w, h, style = {}) {
     ctx.roundRect(startX, legStartY, legW, legH, [0, 0, 5, 5]);
     ctx.roundRect(startX + w - legW, legStartY, legW, legH, [0, 0, 5, 5]);
     ctx.fill();
-
-    // +bounding box
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
 
     ctx.restore();
 }
@@ -1117,8 +1193,7 @@ function drawPersona7(x, y, w, h, style = {}) {
     ctx.restore();
 }
 
-
-function drawpersona4(x, y, w, h, style = {}) {
+function drawPersona4(x, y, w, h, style = {}) {
     ctx.save();
     ctx.translate(x, y);
 
@@ -1179,14 +1254,8 @@ function drawpersona4(x, y, w, h, style = {}) {
     ctx.rect(startX + w - legW, legStartY + legH - 5, legW, 5);
     ctx.fill();
 
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
-
     ctx.restore();
 }
-
 
 function drawPersona2(x, y, w, h, style = {}) {
     ctx.save();
@@ -1299,15 +1368,8 @@ function drawPersona2(x, y, w, h, style = {}) {
     ctx.fillRect(startX - w * 0.04, startY + h - bootH, legW * 1.4, bootH);
     ctx.fillRect(startX + w * 0.58, startY + h - bootH, legW * 1.4, bootH);
 
-    // ── BOUNDING BOX ─────────────────────────────────────────────────
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
-
     ctx.restore();
 }
-
 
 function drawClashRoyaleKnight(x, y, w, h, style = {}) {
     ctx.save();
@@ -1451,13 +1513,6 @@ function drawClashRoyaleKnight(x, y, w, h, style = {}) {
     ctx.rect(startX + w - legW + 3, legStartY + legH*0.75, legW - 6, 3);
     ctx.fill();
     // -legs
-
-    // +bounding box
-    ctx.beginPath();
-    ctx.rect(startX, startY, w, h);
-    ctx.strokeStyle = "#f620ef";
-    ctx.stroke();
-    // -bounding box
 
     ctx.restore();
 }
