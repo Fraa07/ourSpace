@@ -72,7 +72,102 @@ document.addEventListener("keyup", (event) => {
 });
 
 const characters = {
-    normalGuy: drawNormalGuy,
+    normalGuy: drawNormalGuy
+}
+
+function persona1(x, y, w, h, style = {}) {
+    ctx.save();
+
+    // move origin (x=0, y=0) to the person center
+    ctx.translate(x, y);
+    const startX = -w/2;
+    const startY = -h/2;
+
+    // +hat (berretto di Che Guevara)
+    const hatH = h * 0.12;
+    ctx.beginPath();
+    ctx.fillStyle = "#000000";
+    ctx.rect(startX, startY, w, hatH);
+    ctx.fill();
+    
+    // star on hat
+    drawStar(0, startY + hatH*0.5, 5, 5, 8);
+
+    // +head
+    const headH = h * 0.3;
+    const headStartY = startY + hatH;
+    ctx.beginPath();
+    ctx.fillStyle = "#d4a574";
+    ctx.rect(startX, headStartY, w, headH);
+    ctx.fill();
+
+    // +beard (barba caratteristica)
+    ctx.beginPath();
+    ctx.fillStyle = "#000000";
+    ctx.rect(startX, headStartY + headH*0.6, w, headH*0.4);
+    ctx.fill();
+
+    // +eyes
+    const eyeSize = 4;
+    ctx.beginPath();
+    ctx.fillStyle = "#000000";
+    ctx.rect(startX + w*0.25, headStartY + headH*0.3, eyeSize, eyeSize);
+    ctx.rect(startX + w*0.65, headStartY + headH*0.3, eyeSize, eyeSize);
+    ctx.fill();
+    // -head
+
+    // +body (abito da combattente)
+    const bodyStartY = headStartY + headH;
+    const bodyH = h * 0.35;
+    const armLen = 0.4 * w;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#2d5016";
+    ctx.rect(startX, bodyStartY, w, bodyH); // body
+    ctx.rect(startX - armLen, bodyStartY, armLen, 0.35*bodyH); // left arm
+    ctx.rect(startX + w, bodyStartY, armLen, 0.35*bodyH); // right arm
+    ctx.fill();
+    // -body
+
+    // +legs
+    const legH = h - hatH - headH - bodyH;
+    const legStartY = bodyStartY + bodyH;
+    const legW = w * 0.35;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#1a1a1a";
+    ctx.rect(startX, legStartY, legW, legH); // left leg
+    ctx.rect(startX + w - legW, legStartY, legW, legH); // right leg
+    ctx.fill();
+    // -legs
+
+    // +bounding box
+    ctx.beginPath();
+    ctx.rect(startX, startY, w, h);
+    ctx.strokeStyle = "#c5022c";
+    ctx.stroke();
+    // -bounding box
+
+    ctx.restore();
+}
+
+function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+    let rot = Math.PI / 2 * 3;
+    let step = Math.PI / spikes;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - outerRadius);
+    for (let i = 0; i < spikes; i++) {
+        ctx.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
+        rot += step;
+
+        ctx.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
+        rot += step;
+    }
+    ctx.lineTo(cx, cy - outerRadius);
+    ctx.closePath();
+    ctx.fillStyle = "#ffd700";
+    ctx.fill();
 }
 
 function drawNormalGuy(x, y, w, h, style = {}) {
@@ -93,7 +188,7 @@ function drawNormalGuy(x, y, w, h, style = {}) {
     ctx.fill();
 
     ctx.beginPath();
-    ctx.fillStyle = "#151514";
+    ctx.fillStyle = "#d90be0";
     ctx.rect(startX, startY, w, headH/4);
     ctx.fill();
     // -head
@@ -104,7 +199,7 @@ function drawNormalGuy(x, y, w, h, style = {}) {
     const armLen = 0.4 * w;
 
     ctx.beginPath();
-    ctx.fillStyle = "#04097f";
+    ctx.fillStyle = "#ff0000";
     ctx.rect(startX, bodyStartY, w, bodyH); // body
     ctx.rect(startX - armLen, bodyStartY, armLen, 0.35*bodyH); // left arm
     ctx.rect(startX + w, bodyStartY, armLen, 0.35*bodyH); // left arm
