@@ -168,9 +168,13 @@ function draw() {
             ctx.fillStyle = "#58a515";
             ctx.fill();
 
-            Object.values(people).forEach(p =>{
-                drawPerson(p.x, p.y, personW, personH, p.character);
-            });  
+            Object.entries(people).forEach(([id, person]) => {
+                if (id !== myId && person.xTarget) {
+                    person.x += (person.xTarget - person.x) * 0.3;
+                    person.y += (person.yTarget - person.y) * 0.3;
+                }
+                drawPerson(person.x, person.y, personW, personH, person.character);
+            });
         ctx.restore();
     } else {
         let side = Math.min(screenH, screenW);
@@ -222,9 +226,15 @@ socket.addEventListener("message", async event => {
     }
     else if (message.kind === "update") {
         Object.entries(message.people).forEach(entry => {
-            const [id, person] = entry
-            if (id !== myId)        people[id] = person;
-            else if (!people[myId]) people[myId] = person;
+            const [id, updatedPerson] = entry;
+            if (id !== myId) {
+                const personToUpdate = people[id];
+                if (personToUpdate) {
+                    personToUpdate.xTarget = updatedPerson.x;
+                    personToUpdate.yTarget = updatedPerson.y;
+                }
+            }
+            if (!people[id]) people[id] = updatedPerson;
         });
     }
     else if (message.kind === "exit") {
