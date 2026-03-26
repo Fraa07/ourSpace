@@ -106,6 +106,7 @@ const characters = {
     persona8: drawPersonaggio8,
     persona10: drawPersonaggio10,
     persona11: draw11,
+    persona13: drawPersonaggio13,
     persona15: drawPersona15,
     batman: drawBatman,
     clashRoyaleKnight: drawClashRoyaleKnight,
@@ -246,6 +247,155 @@ window.addEventListener('wheel', (event) => {
 
     camera.zoom = Math.min(Math.max(minZoom, camera.zoom), maxZoom);
 }, { passive: false });
+
+
+// MAGO
+function drawPersonaggio13(x, y, w, h, style = {}) {
+    ctx.save();
+    // Sposta l'origine (x=0, y=0) al centro del personaggio
+    ctx.translate(x, y);
+    const startX = -w / 2;
+    const startY = -h / 2;
+
+    // Definiamo le proporzioni per farci stare tutto
+    const hatH = h * 0.25;
+    const headH = h * 0.15;
+    const bodyH = h * 0.50;
+    const feetH = h * 0.10;
+
+    const robeColor = style.robeColor || "#2c1b4d"; // Viola scuro per la tunica
+    const skinColor = style.skinColor || "#eaa66e";
+    const magicColor = style.magicColor || "#00e5ff"; // Ciano brillante per la magia
+
+    // +BASTONE MAGICO (Dietro il corpo, lato destro)
+    const staffX = startX + w * 1.2;
+    // Asta di legno
+    ctx.beginPath();
+    ctx.fillStyle = "#5c4033"; // Marrone scuro
+    ctx.rect(staffX, startY + hatH * 0.5, w * 0.15, h * 0.85);
+    ctx.fill();
+    // Gemma magica (Esterna)
+    ctx.beginPath();
+    ctx.fillStyle = "#008b8b"; // Ciano scuro
+    ctx.rect(staffX - w * 0.075, startY + hatH * 0.1, w * 0.3, hatH * 0.5);
+    ctx.fill();
+    // Gemma magica (Luce interna)
+    ctx.beginPath();
+    ctx.fillStyle = magicColor; 
+    ctx.rect(staffX - w * 0.025, startY + hatH * 0.15, w * 0.2, hatH * 0.3);
+    ctx.fill();
+    // -bastone
+
+    // +CAPPELLO (A strati per fare la punta)
+    ctx.beginPath();
+    ctx.fillStyle = robeColor;
+    // Punta del cappello
+    ctx.rect(startX + w * 0.35, startY, w * 0.3, hatH * 0.4);
+    // Centro del cappello
+    ctx.rect(startX + w * 0.15, startY + hatH * 0.4, w * 0.7, hatH * 0.4);
+    // Tesa larga del cappello (Nota: questa sporge ancora dalla bounding box!)
+    ctx.rect(startX - w * 0.3, startY + hatH * 0.8, w * 1.6, hatH * 0.2);
+    ctx.fill();
+
+    // Fascia del cappello
+    ctx.beginPath();
+    ctx.fillStyle = "#fbc02d"; // Giallo oro
+    ctx.rect(startX + w * 0.15, startY + hatH * 0.7, w * 0.7, hatH * 0.1);
+    ctx.fill();
+    // -cappello
+
+    // +TESTA E VISO
+    const headStartY = startY + hatH;
+    ctx.beginPath();
+    ctx.fillStyle = skinColor;
+    ctx.rect(startX + w * 0.15, headStartY, w * 0.7, headH);
+    ctx.fill();
+
+    // Ombra degli occhi sotto il cappello
+    ctx.beginPath();
+    ctx.fillStyle = "#151514";
+    ctx.rect(startX + w * 0.2, headStartY + headH * 0.2, w * 0.6, headH * 0.2);
+    ctx.fill();
+
+    // Occhietti brillanti (magici)
+    ctx.beginPath();
+    ctx.fillStyle = magicColor;
+    ctx.rect(startX + w * 0.3, headStartY + headH * 0.25, w * 0.1, headH * 0.1); // Occhio sx
+    ctx.rect(startX + w * 0.6, headStartY + headH * 0.25, w * 0.1, headH * 0.1); // Occhio dx
+    ctx.fill();
+    // -testa
+
+    // +TUNICA E CORPO (Modificato: Braccia più strette)
+    const bodyStartY = startY + hatH + headH;
+    const sleeveW = w * 0.25; // Larghezza maniche (prima era 0.5)
+    const handW = w * 0.15;   // Larghezza mani
+    
+    // Maniche
+    ctx.beginPath();
+    ctx.fillStyle = robeColor;
+    ctx.rect(startX - sleeveW, bodyStartY, sleeveW, bodyH * 0.7); // Manica sx
+    ctx.rect(startX + w, bodyStartY, sleeveW, bodyH * 0.7); // Manica dx
+    ctx.fill();
+
+    // Mani che spuntano (centrate sotto la rispettiva manica)
+    ctx.beginPath();
+    ctx.fillStyle = skinColor;
+    ctx.rect(startX - sleeveW + (sleeveW - handW)/2, bodyStartY + bodyH * 0.7, handW, bodyH * 0.15); // Mano sx
+    ctx.rect(startX + w + (sleeveW - handW)/2, bodyStartY + bodyH * 0.7, handW, bodyH * 0.15); // Mano dx
+    ctx.fill();
+
+    // Corpo principale (Tunica)
+    ctx.beginPath();
+    ctx.fillStyle = robeColor;
+    ctx.rect(startX, bodyStartY, w, bodyH);
+    ctx.fill();
+
+    // Cintura con fibbia
+    ctx.beginPath();
+    ctx.fillStyle = "#151514"; // Cintura nera
+    ctx.rect(startX, bodyStartY + bodyH * 0.4, w, bodyH * 0.1);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.fillStyle = "#fbc02d"; // Fibbia d'oro
+    ctx.rect(startX + w * 0.3, bodyStartY + bodyH * 0.35, w * 0.4, bodyH * 0.2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.fillStyle = "#151514"; // Buco fibbia
+    ctx.rect(startX + w * 0.4, bodyStartY + bodyH * 0.4, w * 0.2, bodyH * 0.1);
+    ctx.fill();
+    // -tunica
+
+    // +BARBA MAESTOSA
+    ctx.beginPath();
+    ctx.fillStyle = "#f5f5f5"; // Bianco/Grigio chiarissimo
+    // Barba principale
+    ctx.rect(startX + w * 0.05, headStartY + headH * 0.5, w * 0.9, headH * 0.5 + bodyH * 0.3);
+    // Baffi
+    ctx.rect(startX + w * 0.15, headStartY + headH * 0.6, w * 0.7, headH * 0.2);
+    ctx.fill();
+
+    // Bocca buia sotto i baffi
+    ctx.beginPath();
+    ctx.fillStyle = "#151514";
+    ctx.rect(startX + w * 0.4, headStartY + headH * 0.75, w * 0.2, headH * 0.15);
+    ctx.fill();
+    // -barba
+
+    // +PIEDI
+    const feetStartY = startY + h - feetH;
+    ctx.beginPath();
+    ctx.fillStyle = "#5c4033"; // Scarpe di cuoio
+    ctx.rect(startX + w * 0.1, feetStartY, w * 0.3, feetH); // Piede sx
+    ctx.rect(startX + w * 0.6, feetStartY, w * 0.3, feetH); // Piede dx
+    ctx.fill();
+    // -piedi
+
+    ctx.restore();
+}
+
+
+
+
 
 function drawNormalGuy(x, y, w, h, style = {}) {
     ctx.save();
