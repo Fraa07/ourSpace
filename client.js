@@ -219,13 +219,8 @@ socket.addEventListener("message", async event => {
     if(message.kind === "reset"){
         Object.entries(message.people).forEach(entry => {
             const [id, person] = entry
-            if(id !== myId){
-                people[id] = person;
-                
-            }
-            else if(!people[myId]){
-                people[myId] = person;
-            }
+            if (id !== myId)        people[id] = person;
+            else if (!people[myId]) people[myId] = person;
         });
     }
     else if(message.kind === "id"){
