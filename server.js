@@ -24,6 +24,8 @@ let people = [];
 wsServer.on("connection", (ws, req) => {
     const clientIp = req.socket.remoteAddress;
     console.log("Nuova connessione da " + clientIp);
+    idCounter += 1;
+    
 
     ws.on("message", async data => {
         // TODO
