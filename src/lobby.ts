@@ -65,14 +65,16 @@ export class LobbyServer {
             }
         });
 
+        // mandiamo i messaggi "reset" ai nuovi client
+        this.resetMessages.forEach(msg => messages.push(msg));
+        this.resetMessages = [];
+
+        // mandiamo il messaggio "update" a tutti i client
         const updateMessage: ServerUpdateMsg = {
             kind: "update",
             people: updatedPeople
         };
         messages.push({ payload: updateMessage });
-
-        this.resetMessages.forEach(msg => messages.push(msg));
-        this.resetMessages = [];
 
         return messages;
     }
@@ -155,10 +157,10 @@ export class LobbyClient {
             me.y += yMoveDirection * me.speed;
 
             // controllo che il giocatore non esca dallo spazio di gioco
-            if (me.y - personH/2 < worldBounds.top) me.y = worldBounds.top + personH/2;
-            if (me.y + personH/2 > worldBounds.bottom) me.y = worldBounds.bottom - personH/2;
-            if (me.x - personW/2 < worldBounds.left) me.x = worldBounds.left + personW/2;
-            if (me.x + personW/2 > worldBounds.right) me.x = worldBounds.right - personW/2;
+            if (me.y - personH/2 < worldBounds.top) me.y = worldBounds.top + personH/2 + EPSILON;
+            if (me.y + personH/2 > worldBounds.bottom) me.y = worldBounds.bottom - personH/2 - EPSILON;
+            if (me.x - personW/2 < worldBounds.left) me.x = worldBounds.left + personW/2 + EPSILON;
+            if (me.x + personW/2 > worldBounds.right) me.x = worldBounds.right - personW/2 - EPSILON;
 
             // la camera segue il giocatore
             this.camera.x = me.x;
@@ -181,6 +183,7 @@ export class LobbyClient {
                 ctx.fillStyle = "#58a515";
                 ctx.fill();
 
+                // disegna le persone
                 Object.entries(this.people).forEach(([id, person]) => {
                     if (id !== this.myId && person.xTarget) {
                         person.x += (person.xTarget - person.x) * 0.3;
