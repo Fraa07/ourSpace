@@ -19,31 +19,39 @@ const personH = 120;
 
 export class LobbyServer {
     public people: Record<string, Person>;
-    public resetMessages: OutgoingServerMsg[];
+    public outgoingMessages: OutgoingServerMsg[];
 
     constructor() {
         this.people = {};
-        this.resetMessages = [];
+        this.outgoingMessages = [];
     }
 
     clientConnected(id: string) {
-        this.resetMessages.push({
+        this.outgoingMessages.push({
             clientId: id,
             payload: {
-                kind: 'reset',
-                people: this.people,
+                kind: 'init',
+                yourId: id,
+                people: this.people
             }
         });
     }
 
     clientClosed(id: string) {
         delete this.people[id];
+        this.outgoingMessages.push({
+            payload: {
+                kind: 'exit',
+                id: id,
+            }
+        });
     }
 
     tick(incomingMessages: IncomingClientMsg[], dt: number): OutgoingServerMsg[] {
-        let messages: OutgoingServerMsg[] = [];
-        const updatedPeople: Record<string, Person> = {};
+        const messages: OutgoingServerMsg[] = this.outgoingMessages;
+        this.outgoingMessages = [];
 
+        const updatedPeople: Record<string, Person> = {};
         incomingMessages.forEach(message => {
             const clientId: string = message.clientId;
             const payload: ClientMsg = message.payload;
@@ -64,11 +72,6 @@ export class LobbyServer {
                 updatedPeople[clientId] = person;
             }
         });
-
-        // mandiamo i messaggi "reset" ai nuovi client
-        this.resetMessages.forEach(msg => messages.push(msg));
-        this.resetMessages = [];
-
         // mandiamo il messaggio "update" a tutti i client
         const updateMessage: ServerUpdateMsg = {
             kind: "update",
@@ -231,8 +234,6 @@ export class LobbyClient {
     handleMessage(message: ServerMsg) {
         if (message.kind === "init") {
             this.myId = message.yourId;
-        }
-        if (message.kind === "reset") {
             this.people = message.people;
         }
         else if (message.kind === "update") {

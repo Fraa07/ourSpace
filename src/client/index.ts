@@ -5,8 +5,8 @@ import { LobbyClient } from '../lobby';
 const playground = document.getElementById('playground') as HTMLCanvasElement;
 const ctx: CanvasRenderingContext2D = playground.getContext("2d")!;
 
-const userInput = new UserInput(playground);
-const lobby = new LobbyClient(userInput);
+export const userInput = new UserInput(playground);
+export const lobby = new LobbyClient(userInput);
 
 function draw() {
     lobby.draw(ctx, 0);
@@ -17,7 +17,7 @@ requestAnimationFrame(draw);
 const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const wsHost = window.location.host;
 const wsConnectionString = `${wsProtocol}://${wsHost}`;
-const socket = new WebSocket(wsConnectionString);
+export const socket = new WebSocket(wsConnectionString);
 
 socket.addEventListener("message", async event => {
     const incomingMessage: ServerMsg = JSON.parse(event.data);

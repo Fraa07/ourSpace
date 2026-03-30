@@ -11,10 +11,6 @@ export type Person = {
 export type ServerInitMsg = {
     kind: "init";
     yourId: string;
-};
-
-export type ServerResetMsg = {
-    kind: "reset";
     people: Record<string, Person>;
 };
 
@@ -31,7 +27,6 @@ export type ServerExitMsg = {
 export type ServerMsg =
     | ServerInitMsg
     | ServerUpdateMsg 
-    | ServerResetMsg 
     | ServerExitMsg;
 
 // if clientId is defined, the message will be sent to that specific client

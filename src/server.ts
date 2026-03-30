@@ -54,18 +54,10 @@ wsServer.on("connection", (ws, req) => {
     const clientIp = req.socket.remoteAddress;
     console.log("Nuova connessione da " + clientIp);
 
-    // Quando un nuovo client si connette:
-    // * gli assegnamo un id
-    // * gli mandiamo un messaggio contenente il suo id
     idCounter+= 1;
     const id = idCounter + '';
     ws.id = id;
-    lobby.clientConnected(id); // segnaliamo alla lobby che c'e' un nuovo client
-    const initMessage: ServerInitMsg = {
-        kind: "init",
-        yourId: id
-    };
-    ws.send(JSON.stringify(initMessage));
+    lobby.clientConnected(id);
 
     // Mettiamo i messaggi in arrivo dai client in una coda
     ws.on("message", data => {
@@ -81,12 +73,6 @@ wsServer.on("connection", (ws, req) => {
     ws.on("close", data => {
         console.log("Client disconnesso: " + clientIp);
         lobby.clientClosed(id); // segnaliamo alla lobby che il client si e' disconnesso
-        const exitMessage: ServerExitMsg = {
-            kind: "exit",
-            id: ws.id
-        };
-        const exitMessageString = JSON.stringify(exitMessage);
-        wsServer.clients.forEach(socket => socket.send(exitMessageString));
     });
 });
 
