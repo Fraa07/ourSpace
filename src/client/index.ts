@@ -209,7 +209,9 @@ function drawPerson(ctx: CanvasRenderingContext2D, x, y, w, h, characterName) {
     drawFunction(ctx, x, y, w, h, characterName);
 }
 
-const wsConnectionString = `ws://localhost:4242`;
+const wsProtocol = window.location.protocol === 'https' ? 'wss' : 'ws';
+const wsHost = window.location.host;
+const wsConnectionString = `${wsProtocol}://${wsHost}`;
 const socket = new WebSocket(wsConnectionString);
 
 socket.addEventListener("message", async event => {
