@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';
 import { WebSocketServer } from 'ws';
@@ -14,6 +15,7 @@ type IncomingMessage = {
 };
 
 const SERVER_PORT = process.env.OURSPACE_SERVER_PORT || 4242;
+const PUBLIC_FOLDER = process.env.OURSPACE_PUBLIC_FOLDER || 'build/public';
 
 let httpServer = http.createServer();
 if (process.env.OURSPACE_HTTPS_ENABLED) {
@@ -25,8 +27,8 @@ if (process.env.OURSPACE_HTTPS_ENABLED) {
     console.log("Using https");
 }
 
-const indexHTMLFile = fs.readFileSync('build/public/index.html');
-const indexJSFile = fs.readFileSync('build/public/index.js');
+const indexHTMLFile = fs.readFileSync(path.join(PUBLIC_FOLDER, 'index.html'));
+const indexJSFile = fs.readFileSync(path.join(PUBLIC_FOLDER, 'index.js'));
 httpServer.on('request', (req, res) => {
     if (req.method === 'GET' && req.url === '/' || req.url === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
