@@ -28,8 +28,8 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-let myId: string | null = null;
-let people: Record<string, ClientPerson> = {}; 
+export let myId: string | null = null;
+export let people: Record<string, ClientPerson> = {};
 
 const personW = 40;
 const personH = 120;
