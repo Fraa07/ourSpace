@@ -16,7 +16,7 @@ type IncomingMessage = {
 const SERVER_PORT = process.env.OURSPACE_SERVER_PORT || 4242;
 
 let httpServer = http.createServer();
-if (process.env.HTTPS_ENABLED) {
+if (process.env.OURSPACE_HTTPS_ENABLED) {
     const serverConfig = {
         key: fs.readFileSync(process.env.OURSPACE_HTTPS_KEY),
         cert: fs.readFileSync(process.env.OURSPACE_HTTPS_CERT)
