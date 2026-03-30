@@ -11,6 +11,10 @@ export type Person = {
 export type ServerInitMsg = {
     kind: "init";
     yourId: string;
+};
+
+export type ServerResetMsg = {
+    kind: "reset";
     people: Record<string, Person>;
 };
 
@@ -24,10 +28,18 @@ export type ServerExitMsg = {
     id: string;
 };
 
-export type ServerMsg = 
+export type ServerMsg =
     | ServerInitMsg
     | ServerUpdateMsg 
+    | ServerResetMsg 
     | ServerExitMsg;
+
+// if clientId is defined, the message will be sent to that specific client
+// otherwise it will be sent to all clients
+export type OutgoingServerMsg = {
+    clientId?: string;
+    payload: ServerMsg;
+}
 
 // Messaggi mandati dal client
 export type ClientInitMsg = {
@@ -44,6 +56,11 @@ export type ClientMoveMsg = {
 export type ClientMsg = 
     | ClientInitMsg 
     | ClientMoveMsg;
+
+export type IncomingClientMsg = {
+    clientId: string,
+    payload: ClientMsg
+};
 
 
 // Funzioni matematiche

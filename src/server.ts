@@ -3,16 +3,12 @@ import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';
 import { WebSocketServer } from 'ws';
+import { LobbyServer } from './lobby';
 
 import {
-    Person, TICK_FREQUENCY,
-    ServerUpdateMsg, ServerInitMsg, ServerExitMsg, ClientMsg
+    TICK_FREQUENCY, IncomingClientMsg,
+    ServerInitMsg, ServerExitMsg, OutgoingServerMsg
 } from "./common";
-
-type IncomingMessage = {
-    clientId: string,
-    payload: ClientMsg
-};
 
 const SERVER_PORT = process.env.OURSPACE_SERVER_PORT || 4242;
 const PUBLIC_FOLDER = process.env.OURSPACE_PUBLIC_FOLDER || 'build/public';
@@ -48,10 +44,9 @@ const wsServer = new WebSocketServer({ server: httpServer })
 
 console.log("Server ws in ascolto sulla porta " + SERVER_PORT);
 
-let people: Record<string, Person> = {};
 let idCounter: number = 0;
-
-let incomingMessages: IncomingMessage[] = []; 
+let incomingMessages: IncomingClientMsg[] = []; 
+const lobby = new LobbyServer();
 
 wsServer.on("connection", (ws, req) => {
     const clientIp = req.socket.remoteAddress;
@@ -60,14 +55,14 @@ wsServer.on("connection", (ws, req) => {
     idCounter+= 1;
     const id = idCounter + '';
     ws.id = id;
+    lobby.clientConnected(id);
     const initMessage: ServerInitMsg = {
         kind: "init",
-        yourId: id,
-        people: people
+        yourId: id
     };
     ws.send(JSON.stringify(initMessage));
 
-    ws.on("message", async data => {
+    ws.on("message", data => {
         const payload = JSON.parse(data);
 
         incomingMessages.push({
@@ -78,7 +73,7 @@ wsServer.on("connection", (ws, req) => {
 
     ws.on("close", data => {
         console.log("Client disconnesso: " + clientIp);
-        delete people[ws.id];
+        lobby.clientClosed(id);
         const exitMessage: ServerExitMsg = {
             kind: "exit",
             id: ws.id
@@ -92,39 +87,19 @@ wsServer.on("connection", (ws, req) => {
 function tick(){
     const messages = incomingMessages;
     incomingMessages = [];
-    const updatedPeople: Record<string, Person> = {};
+    let outgoingMessages: OutgoingServerMsg[];
 
-    messages.forEach(message => {
-        const clientId: string = message.clientId;
-        const payload: ClientMsg = message.payload;
-        if (payload.kind === "init") {
-            const newPerson = {
-                x: 0,
-                y: 0,
-                speed: 5,
-                character: payload.character,
-            };
-            people[clientId] = newPerson;
-            updatedPeople[clientId] = newPerson;
-        }
-        else if (payload.kind === "move") {
-            const person = people[clientId]
-            person.x = payload.x 
-            person.y = payload.y
-            updatedPeople[clientId] = person;
-        }
+    outgoingMessages = lobby.tick(messages, 0);
+    outgoingMessages.forEach(message => {
+        const messageString = JSON.stringify(message.payload);
+        wsServer.clients.forEach(socket => {
+            if (socket.id === message.clientId) socket.send(messageString);
+            else if (!message.clientId) socket.send(messageString);
+        })
     });
-    const updateMessage: ServerUpdateMsg = {
-        kind: "update",
-        people: updatedPeople
-    };
-    const updateMessageString = JSON.stringify(updateMessage);
-    wsServer.clients.forEach(
-        socket => socket.send(updateMessageString)
-    );
 }
-
 setInterval(tick, 1000/TICK_FREQUENCY)
+
 if (httpServer) httpServer.listen(SERVER_PORT, () => {
     console.log('Server http in ascolto sulla porta ' + SERVER_PORT);
 });

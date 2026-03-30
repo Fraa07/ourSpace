@@ -1,4 +1,4 @@
-import { Person, ClientMsg, ClientInitMsg, ClientMoveMsg, ServerMsg, mod } from './common';
+import { Person, ClientMsg, ClientInitMsg, ServerMsg, mod, OutgoingServerMsg, IncomingClientMsg, ServerUpdateMsg } from './common';
 
 type ClientPerson = Person & {
     xTarget?: number;
@@ -18,24 +18,79 @@ const worldBounds = {
 const personW = 40;
 const personH = 120;
 
+//////////////////////
+////// SERVER ////////
+//////////////////////
+
 export class LobbyServer {
     public people: Record<string, Person>;
+    public resetMessages: OutgoingServerMsg[];
 
     constructor() {
         this.people = {};
+        this.resetMessages = [];
     }
 
-    tick(incomingMessages: ClientMsg, dt: number) {
-        // 1 - update state based on incoming messages
-        // 2 - return updates to the clients
+    clientConnected(id: string) {
+        this.resetMessages.push({
+            clientId: id,
+            payload: {
+                kind: 'reset',
+                people: this.people,
+            }
+        });
+    }
+
+    clientClosed(id: string) {
+        delete this.people[id];
+    }
+
+    tick(incomingMessages: IncomingClientMsg[], dt: number): OutgoingServerMsg[] {
+        let messages: OutgoingServerMsg[] = [];
+        const updatedPeople: Record<string, Person> = {};
+
+        incomingMessages.forEach(message => {
+            const clientId: string = message.clientId;
+            const payload: ClientMsg = message.payload;
+            if (payload.kind === "init") {
+                const newPerson = {
+                    x: 0,
+                    y: 0,
+                    speed: 5,
+                    character: payload.character,
+                };
+                this.people[clientId] = newPerson;
+                updatedPeople[clientId] = newPerson;
+            }
+            else if (payload.kind === "move") {
+                const person = this.people[clientId]
+                person.x = payload.x 
+                person.y = payload.y
+                updatedPeople[clientId] = person;
+            }
+        });
+
+        const updateMessage: ServerUpdateMsg = {
+            kind: "update",
+            people: updatedPeople
+        };
+        messages.push({ payload: updateMessage });
+
+        this.resetMessages.forEach(msg => messages.push(msg));
+        this.resetMessages = [];
+
+        return messages;
     }
 }
+
+//////////////////////
+////// SERVER ////////
+//////////////////////
 
 import { getCharacterDrawFunction, getCharacterNames } from './client/characters';
 import { UserInput } from './client/user-input';
 // gestione dello zoom
-const minZoom = 0.1, maxZoom = 4;
-const zoomSpeed = 0.035;
+const ZOOM_MIN = 0.1, ZOOM_MAX = 4, ZOOM_SPEED = 0.035;
 
 export class LobbyClient {
     public userInput: any;
@@ -82,19 +137,19 @@ export class LobbyClient {
             event.preventDefault();
             
             if (event.deltaY > 0) {
-                this.camera.zoom *= (1 - zoomSpeed);
+                this.camera.zoom *= (1 - ZOOM_SPEED);
             } else {
-                this.camera.zoom *= (1 + zoomSpeed);
+                this.camera.zoom *= (1 + ZOOM_SPEED);
             }
 
-            this.camera.zoom = Math.min(Math.max(minZoom, this.camera.zoom), maxZoom);
+            this.camera.zoom = Math.min(Math.max(ZOOM_MIN, this.camera.zoom), ZOOM_MAX);
         }, { passive: false });
     }
 
     draw(ctx: CanvasRenderingContext2D, dt: number) {
         const { screenW, screenH, xMoveDirection, yMoveDirection } = this.userInput;
         const me = this.getMe();
-        if (me) {
+        if (me) { // LOBBY
             // gestione movimento
             me.x += xMoveDirection * me.speed;
             me.y += yMoveDirection * me.speed;
@@ -135,7 +190,7 @@ export class LobbyClient {
                     drawPerson(ctx, person.x, person.y, personW, personH);
                 });
             ctx.restore();
-        } else {
+        } else { // CHARACTER SELECT
             let side = Math.min(screenH, screenW);
             ctx.save();
                 ctx.translate(screenW/2, screenH/2); // centra lo schermo
@@ -171,9 +226,10 @@ export class LobbyClient {
     }
 
     handleMessage(message: ServerMsg) {
-        // update state based on stateUpdate from the server
         if (message.kind === "init") {
             this.myId = message.yourId;
+        }
+        if (message.kind === "reset") {
             this.people = message.people;
         }
         else if (message.kind === "update") {

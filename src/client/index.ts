@@ -1,4 +1,4 @@
-import { ServerMsg, ClientMsg, mod, TICK_FREQUENCY } from '../common';
+import { ServerMsg, ClientMsg, TICK_FREQUENCY } from '../common';
 import { UserInput } from './user-input';
 import { LobbyClient } from '../lobby';
 
@@ -22,12 +22,10 @@ const socket = new WebSocket(wsConnectionString);
 socket.addEventListener("message", async event => {
     const incomingMessage: ServerMsg = JSON.parse(event.data);
     lobby.handleMessage(incomingMessage);
-
 });
 
 setInterval(() => {
-    lobby.flushMessages().forEach(message =>{
+    lobby.flushMessages().forEach((message: ClientMsg) =>{
         socket.send(JSON.stringify(message));
     })
 }, 1000/TICK_FREQUENCY);
-
