@@ -43,6 +43,11 @@ export class UserInput {
 
             this.updateMoveDirections();
         });
+
+        window.addEventListener("blur", () => {
+            this.xMoveDirection = 0;
+            this.yMoveDirection = 0;
+        });
     }
 
     updateMoveDirections() {
