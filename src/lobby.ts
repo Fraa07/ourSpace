@@ -1,5 +1,5 @@
 import { Person, ClientMsg, ClientInitMsg, ServerMsg, mod, OutgoingServerMsg, IncomingClientMsg, ServerUpdateMsg } from './common';
-import { Button } from './client/ui-elements';
+import { Button, TextInput } from './client/ui-elements';
 
 const EPSILON = 0.000001;
 
@@ -57,14 +57,26 @@ export class LobbyServer {
             const clientId: string = message.clientId;
             const payload: ClientMsg = message.payload;
             if (payload.kind === "init") {
-                const newPerson = {
-                    x: 0,
-                    y: 0,
-                    speed: 5,
-                    character: payload.character,
-                };
-                this.people[clientId] = newPerson;
-                updatedPeople[clientId] = newPerson;
+                // TODO optimisable
+                if (Object.values(this.people).find(p => p.name === payload.name)) {
+                    this.outgoingMessages.push({
+                        clientId: clientId,
+                        payload: {
+                            kind: 'nameIsTaken'
+                        }
+                    })
+                }
+                else {
+                    const newPerson: Person = {
+                        x: 0,
+                        y: 0,
+                        speed: 5,
+                        name: payload.name,
+                        character: payload.character,
+                    };
+                    this.people[clientId] = newPerson;
+                    updatedPeople[clientId] = newPerson;
+                }
             }
             else if (payload.kind === "move") {
                 const person = this.people[clientId]
@@ -111,6 +123,7 @@ export class LobbyClient {
     public leftBtn: Button;
     public rightBtn: Button;
     public okBtn: Button;
+    public nameInput: TextInput;
 
     public initMessage: ClientInitMsg | null = null;
 
@@ -123,6 +136,8 @@ export class LobbyClient {
         this.characterNames = getCharacterNames();
         this.selectedCharacterIndex = 0;
 
+        this.nameInput = new TextInput(userInput, 'nickname');
+
         this.leftBtn = new Button('<', userInput, () => {
             this.selectedCharacterIndex = mod(this.selectedCharacterIndex + 1, this.characterNames.length);
         });
@@ -130,9 +145,13 @@ export class LobbyClient {
             this.selectedCharacterIndex = mod(this.selectedCharacterIndex - 1, this.characterNames.length);
         });
         this.okBtn = new Button('ok', userInput, () => {
-            this.initMessage = {
-                kind: "init",
-                character: this.characterNames[this.selectedCharacterIndex]
+            const name = this.nameInput.getValue() || '';
+            if (name.length) {
+                this.initMessage = {
+                    kind: "init",
+                    name: name,
+                    character: this.characterNames[this.selectedCharacterIndex]
+                }
             }
         });
         this.okBtn.setColors({ main: "#58a515" })
@@ -186,6 +205,27 @@ export class LobbyClient {
                     }
                     const drawPerson = getCharacterDrawFunction(person.character);
                     drawPerson(ctx, person.x, person.y, personW, personH);
+                    // +personName
+                    const fontSize = Math.floor(personH * 0.15);
+                    const nameY = person.y - personH/2 - fontSize - personH*0.08;
+                    ctx.font = `${fontSize}px Arial`;
+                    const nameWidth = ctx.measureText(person.name).width;
+                    const padding = 4;
+
+                    // Draw a semi-transparent black background pill
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; 
+                    ctx.fillRect(
+                        person.x - (nameWidth / 2) - padding, 
+                        nameY - padding, 
+                        nameWidth + (padding * 2), 
+                        fontSize + (padding * 2)
+                    );
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "top";
+                    ctx.lineWidth = 4;
+                    ctx.fillStyle = "#eeeeee";
+                    ctx.fillText(person.name, person.x, nameY);
+                    // -personName
                 });
             ctx.restore();
         } else { // CHARACTER SELECT
@@ -203,21 +243,28 @@ export class LobbyClient {
                 ctx.fill();
                 ctx.stroke();
 
-                const btnWidth = side * 0.1;
-                const btnHeight = side  * 0.4;
-                const btnSpacing = borderWidth + 5;
-                this.rightBtn.draw(ctx, side/2 - btnWidth - btnSpacing, -btnHeight/2, btnWidth, btnHeight);
-                this.leftBtn.draw(ctx, -side/2 + btnSpacing, -btnHeight/2, btnWidth, btnHeight);
-
+                // personaggio
                 const characterName = this.characterNames[this.selectedCharacterIndex];
-                const characterH = side * 0.6;
+                const characterH = side * 0.5;
                 const characterW = characterH * personW / personH;
                 const drawPerson = getCharacterDrawFunction(characterName);
                 drawPerson(ctx, 0, 0, characterW, characterH);
 
+                const padding = borderWidth + 5;
+
+                // input nickname
+                const nameInputW = side * 0.7;
+                const nameInputH = side * 0.1;
+                this.nameInput.draw(ctx, -nameInputW/2, -side/2 + padding, nameInputW, nameInputH);
+
+                // bottoni
+                const btnWidth = side * 0.1;
+                const btnHeight = side  * 0.4;
+                this.rightBtn.draw(ctx, side/2 - btnWidth - padding, -btnHeight/2, btnWidth, btnHeight);
+                this.leftBtn.draw(ctx, -side/2 + padding, -btnHeight/2, btnWidth, btnHeight);
                 const okBtnW = side * 0.4;
                 const okBtnH = side * 0.1;
-                this.okBtn.draw(ctx, -okBtnW/2, side/2 - okBtnH - btnSpacing, okBtnW, okBtnH);
+                this.okBtn.draw(ctx, -okBtnW/2, side/2 - okBtnH - padding, okBtnW, okBtnH);
 
             ctx.restore();
         }
@@ -227,6 +274,9 @@ export class LobbyClient {
         if (message.kind === "init") {
             this.myId = message.yourId;
             this.people = message.people;
+        }
+        else if (message.kind === "nameIsTaken") {
+            alert("nickname is already taken");
         }
         else if (message.kind === "update") {
             Object.entries(message.people).forEach(entry => {

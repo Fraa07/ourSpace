@@ -4,6 +4,7 @@ export type Person = {
     x: number;
     y: number;
     speed: number;
+    name: string;
     character: string;
 };
 
@@ -12,6 +13,10 @@ export type ServerInitMsg = {
     kind: "init";
     yourId: string;
     people: Record<string, Person>;
+};
+
+export type ServerNameIsTakenMsg = {
+    kind: "nameIsTaken";
 };
 
 export type ServerUpdateMsg = {
@@ -26,6 +31,7 @@ export type ServerExitMsg = {
 
 export type ServerMsg =
     | ServerInitMsg
+    | ServerNameIsTakenMsg
     | ServerUpdateMsg 
     | ServerExitMsg;
 
@@ -39,6 +45,7 @@ export type OutgoingServerMsg = {
 // Messaggi mandati dal client
 export type ClientInitMsg = {
     kind: "init";
+    name: string;
     character: string;
 };
 
