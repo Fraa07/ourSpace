@@ -65,23 +65,22 @@ type ClientGameProposalMsg = {
     gameName: string;
 };
 
-type ClientGameProposalResponseMsg = {
-    kind: "gameProposalResponse";
+type ClientGameProposalAcceptMsg = {
+    kind: "gameProposalAccept";
     proposalId: string;
-    accept: boolean;
 };
 
 type ClientStartGameMsg = {
     kind: "startGame";
-    gameName: string;
+    proposalId: string;
 };
 
 type LobbyClientMsg = 
     | ClientInitMsg 
     | ClientMoveMsg
     | ClientGameProposalMsg
-    | ClientGameProposalResponseMsg
-    | ClientStartGameMsg 
+    | ClientGameProposalAcceptMsg
+    | ClientStartGameMsg
     | GameMsg;
 
 type GameMsg = {
@@ -96,7 +95,6 @@ type GameStartedMsg = {
     gameName: string;
     players: Record<string, Player>;
 };
-
 
 
 // -messaggi
@@ -124,6 +122,15 @@ export class LobbyServer {
     public outgoingMessages: OutgoingMsg[];
     public games: Record<string, GameServer> = {};
     private gameIdCounter: number = 0;
+    
+    // Game proposal tracking
+    private currentProposal: {
+        gameName: string;
+        proposerId: string;
+        proposalId: string;
+        acceptedPlayerIds: Set<string>; // Players who accepted the proposal
+    } | null = null;
+    private proposalIdCounter: number = 0;
 
     constructor() {
         this.people = {};
@@ -143,6 +150,17 @@ export class LobbyServer {
 
     clientClosed(id: string) {
         delete this.people[id];
+        
+        // If this client was the proposer, cancel the proposal
+        if (this.currentProposal && this.currentProposal.proposerId === id) {
+            this.currentProposal = null;
+        }
+        
+        // If this client accepted a proposal, remove them from accepted players
+        if (this.currentProposal) {
+            this.currentProposal.acceptedPlayerIds.delete(id);
+        }
+        
         this.outgoingMessages.push({
             payload: {
                 kind: 'exit',
@@ -208,9 +226,24 @@ export class LobbyServer {
                 person.y = payload.y
                 updatedPeople[clientId] = person;
             }
+            else if (payload.kind === "gameProposal") {
+                this.handleGameProposal(clientId, payload.gameName);
+            }
+            else if (payload.kind === "gameProposalAccept") {
+                if (this.currentProposal && this.currentProposal.proposalId === payload.proposalId)
+                    this.currentProposal.acceptedPlayerIds.add(clientId);
+            }
             else if (payload.kind === "startGame") {
-                const gameStartedMessage = this.startGame(payload.gameName);
-                if (gameStartedMessage) messages.push(gameStartedMessage);
+                // Check if this is the proposer starting a proposed game
+                if (this.currentProposal && this.currentProposal.proposerId === clientId) {
+                    const gameStartedMessage = this.startGameFromProposal();
+                    if (gameStartedMessage) messages.push(gameStartedMessage);
+                } 
+                // else {
+                //     // Regular game start (for backward compatibility)
+                //     const gameStartedMessage = this.startGame(payload.gameName);
+                //     if (gameStartedMessage) messages.push(gameStartedMessage);
+                // }
             }
         });
 
@@ -293,6 +326,82 @@ export class LobbyServer {
         })
         return players;
     }
+    
+    private handleGameProposal(clientId: string, gameName: string): void {
+        // Only allow one proposal at a time
+        if (this.currentProposal !== null) {
+            return;
+        }
+        
+        this.proposalIdCounter += 1;
+        const proposalId = this.proposalIdCounter + '';
+        
+        this.currentProposal = {
+            gameName,
+            proposerId: clientId,
+            proposalId,
+            acceptedPlayerIds: new Set([clientId]) // Proposer auto-accepts
+        };
+        
+        // send proposal to clients
+        this.outgoingMessages.push({
+            payload: {
+                kind: 'gameProposal',
+                gameName,
+                proposerId: clientId,
+                proposalId
+            } as ServerGameProposalMsg
+        });
+    }
+    
+    private startGameFromProposal(): OutgoingMsg | null {
+        if (this.currentProposal === null) return null;
+        
+        const { gameName, proposerId, acceptedPlayerIds } = this.currentProposal;
+        
+        // Need at least 2 players (proposer + at least one other)
+        if (acceptedPlayerIds.size < 2) {
+            return null;
+        }
+        
+        let game: GameServer | null = null;
+        
+        if (gameName === 'guess')
+            game = new GuessGameServer();
+        // else if (gameName === 'pong')
+        //     game = new PongGameServer();
+
+        if (!game) return null;
+
+        this.gameIdCounter += 1;
+        const gameId = this.gameIdCounter + '';
+        
+        // Get players who accepted the proposal
+        const players: Record<string, Player> = {};
+        acceptedPlayerIds.forEach(playerId => {
+            const person = this.people[playerId];
+            if (person) {
+                players[playerId] = {
+                    name: person.name,
+                    character: person.character
+                };
+            }
+        });
+        
+        game.init(players);
+        this.games[gameId] = game;
+        
+        this.currentProposal = null;
+        
+        return {
+            payload: {
+                kind: "gameStarted",
+                gameId: gameId,
+                gameName: gameName,
+                players: players
+            }
+        };
+    }
 }
 
 //////////////////////
@@ -330,6 +439,12 @@ export class LobbyClient {
 
     public initMessage: ClientInitMsg | null = null;
     public startGameMessage: ClientStartGameMsg | null = null;
+    public gameProposalMessage: ClientGameProposalMsg | null = null;
+    public gameProposalAcceptMessage: ClientGameProposalAcceptMsg | null = null;
+    
+    // Game proposal tracking
+    public currentProposalId: string | null = null;
+    public isProposer: boolean = false;
     
     public currentGame: GameClient | null = null;
     public currentGameId: string | null = null;
@@ -365,12 +480,39 @@ export class LobbyClient {
         });
         this.okBtn.setColors({ main: "#58a515" })
 
-        this.startGameBtn = new Button('start game', userInput, () => {
-            this.startGameMessage = {
-                kind: 'startGame',
-                gameName: 'guess'
+        this.startGameBtn = new Button('propose game', userInput, () => {
+            if (this.currentProposalId) {
+                if (this.isProposer) {
+                    // We're the proposer, start the game
+                    this.startGameMessage = {
+                        kind: 'startGame',
+                        proposalId: this.currentProposalId
+                    };
+                }
+                else {
+                    this.gameProposalAcceptMessage = {
+                        kind: 'gameProposalAccept',
+                        proposalId: this.currentProposalId
+                    };
+                }
+            }
+            else {
+                this.gameProposalMessage = {
+                    kind: 'gameProposal',
+                    gameName: 'guess'
+                };
+                this.startGameBtn.setLabel('start game');
             }
         });
+        // this.joinGameBtn = new Button('join game', userInput, () => {
+        //     if (this.currentProposalId) {
+        //         this.gameProposalAcceptMessage = {
+        //             kind: 'gameProposalAccept',
+        //             proposalId: this.currentProposalId
+        //         };
+        //     }
+        // });
+        // this.joinGameBtn.setColors({ main: "#ff9900" });
     }
 
     draw(ctx: CanvasRenderingContext2D, dt: number) {
@@ -435,6 +577,17 @@ export class LobbyClient {
         });
 
         ctx.restore();
+        
+        // Show appropriate button based on proposal state
+        if (this.currentProposalId) {
+            if (this.isProposer) {
+                this.startGameBtn.setLabel('start game');
+            } else {
+                this.startGameBtn.setLabel('join game');
+            }
+        } else {
+            this.startGameBtn.setLabel('propose game');
+        }
         this.startGameBtn.draw(ctx, screenW - 110, 10, 100, 30);
     }
 
@@ -505,10 +658,22 @@ export class LobbyClient {
 
     handleMessage(message: LobbyServerMsg) {
         if (message.kind === "gameStarted") {
-            if (this.currentGame) return;
+            if (this.currentGame) return; // ignore if already in a game
+            if (!message.players[this.myId]) { // ignore if i'm not in players list
+                this.currentProposalId = null;
+                this.isProposer = false;
+                return;
+            }
             this.currentGame = new GuessGameClient(this.userInput, this.myId!);
             this.currentGame.init(message.players);
             this.currentGameId = message.gameId;
+            
+            this.currentProposalId = null;
+            this.isProposer = false;
+        }
+        else if (message.kind === "gameProposal") {
+            this.currentProposalId = message.proposalId;
+            this.isProposer = message.proposerId === this.myId
         }
         else if (message.kind === "game") {
             if (this.currentGame && message.gameId === this.currentGameId) {
@@ -558,6 +723,14 @@ export class LobbyClient {
         if (this.initMessage) {
             messages.push(this.initMessage);
             this.initMessage = null;
+        }
+        if (this.gameProposalMessage) {
+            messages.push(this.gameProposalMessage);
+            this.gameProposalMessage = null;
+        }
+        if (this.gameProposalAcceptMessage) {
+            messages.push(this.gameProposalAcceptMessage);
+            this.gameProposalAcceptMessage = null;
         }
         if (this.startGameMessage) {
             messages.push(this.startGameMessage);

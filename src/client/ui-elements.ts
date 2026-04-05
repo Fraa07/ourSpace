@@ -109,6 +109,10 @@ export class Button extends ClickableRectangle {
     setColors(newColors: ButtonColors): void {
         this.colors = { ...this.colors, ...newColors };
     }
+
+    setLabel(text: string): void {
+        this.text = text;
+    }
 }
 
 const EMPTY_FUNCTION = () => {};
