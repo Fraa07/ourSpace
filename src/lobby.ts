@@ -32,11 +32,19 @@ type ServerExitMsg = {
     id: string;
 };
 
+type ServerGameProposalMsg = {
+    kind: "gameProposal";
+    gameName: string;
+    proposerId: string;
+    proposalId: string;
+};
+
 type LobbyServerMsg =
     | ServerInitMsg
     | ServerNameIsTakenMsg
     | ServerUpdateMsg 
     | ServerExitMsg
+    | ServerGameProposalMsg
     | GameStartedMsg
     | GameMsg;
 
@@ -52,6 +60,17 @@ type ClientMoveMsg = {
     y: number;
 };
 
+type ClientGameProposalMsg = {
+    kind: "gameProposal";
+    gameName: string;
+};
+
+type ClientGameProposalResponseMsg = {
+    kind: "gameProposalResponse";
+    proposalId: string;
+    accept: boolean;
+};
+
 type ClientStartGameMsg = {
     kind: "startGame";
     gameName: string;
@@ -59,8 +78,10 @@ type ClientStartGameMsg = {
 
 type LobbyClientMsg = 
     | ClientInitMsg 
-    | ClientStartGameMsg 
     | ClientMoveMsg
+    | ClientGameProposalMsg
+    | ClientGameProposalResponseMsg
+    | ClientStartGameMsg 
     | GameMsg;
 
 type GameMsg = {
@@ -101,8 +122,7 @@ const personH = 120;
 export class LobbyServer {
     public people: Record<string, Person>;
     public outgoingMessages: OutgoingMsg[];
-    public currentGame: GameServer | null = null;
-    public currentGameId: string | null = null;
+    public games: Record<string, GameServer> = {};
     private gameIdCounter: number = 0;
 
     constructor() {
@@ -139,13 +159,19 @@ export class LobbyServer {
         messages.push(...this.outgoingMessages);
         this.outgoingMessages = [];
 
-        // Separate lobby messages from game messages
+        // Separate lobby messages from game messages and group game messages by gameId
         const lobbyMessages: IncomingMsg[] = [];
-        const gameMessages: IncomingMsg[] = [];
+        const gameMessagesByGameId: Record<string, IncomingMsg[]> = {};
         
         incomingMessages.forEach(message => {
             if (message.payload.kind === "game") {
-                gameMessages.push(message);
+                const gameMsg = message.payload as GameMsg;
+                const gameId = gameMsg.gameId;
+                
+                if (!gameMessagesByGameId[gameId]) {
+                    gameMessagesByGameId[gameId] = [];
+                }
+                gameMessagesByGameId[gameId].push(message);
             } else {
                 lobbyMessages.push(message);
             }
@@ -183,11 +209,8 @@ export class LobbyServer {
                 updatedPeople[clientId] = person;
             }
             else if (payload.kind === "startGame") {
-                // only one game at a time, for now
-                if (!this.currentGame) {
-                    const gameStartedMessage = this.startGame(payload.gameName);
-                    if (gameStartedMessage) messages.push(gameStartedMessage);
-                }
+                const gameStartedMessage = this.startGame(payload.gameName);
+                if (gameStartedMessage) messages.push(gameStartedMessage);
             }
         });
 
@@ -200,53 +223,62 @@ export class LobbyServer {
         // -lobby
         
         // +game
-        if (this.currentGame && this.currentGameId) {
+        // Process each game
+        Object.entries(this.games).forEach(([gameId, game]) => {
+            // Get messages for this game
+            const gameMsgs = gameMessagesByGameId[gameId] || [];
+            
             // Extract game data from GameMsg wrapper
-            const unwrappedGameMessages: IncomingMsg[] = gameMessages.map(msg => ({
+            const unwrappedGameMessages: IncomingMsg[] = gameMsgs.map(msg => ({
                 clientId: msg.clientId,
                 payload: (msg.payload as GameMsg).data
             }));
             
-            const gameOutgoingMessages = this.currentGame.tick(unwrappedGameMessages, dt);
-            // Wrap game messages in GameMsg
+            // Process game tick
+            const gameOutgoingMessages = game.tick(unwrappedGameMessages, dt);
+            
+            // Wrap game messages in GameMsg and add to output
             gameOutgoingMessages.forEach(m => {
                 messages.push({
                     clientId: m.clientId,
                     payload: {
                         kind: "game",
-                        gameId: this.currentGameId,
+                        gameId: gameId,
                         data: m.payload
                     }
                 });
             });
             
-            if (this.currentGame.isFinished()) {
-                this.currentGame = null;
-                this.currentGameId = null;
+            // Remove finished games
+            if (game.isFinished()) {
+                delete this.games[gameId];
             }
-        }
+        });
         // -game
 
         return messages;
     }
     
     private startGame(gameName: string): OutgoingMsg | null {
+        let game: GameServer | null = null;
+        
         if (gameName === 'guess')
-            this.currentGame = new GuessGameServer();
+            game = new GuessGameServer();
         // else if (gameName === 'pong')
-        //     currentGame = new PongGameServer();
+        //     game = new PongGameServer();
 
-        if (!this.currentGame) return null;
+        if (!game) return null;
 
         this.gameIdCounter += 1;
-        this.currentGameId = this.gameIdCounter + '';
+        const gameId = this.gameIdCounter + '';
         const players = this.getPlayers();
-        this.currentGame.init(players);
+        game.init(players);
+        this.games[gameId] = game;
         
         return {
             payload: {
                 kind: "gameStarted",
-                gameId: this.currentGameId,
+                gameId: gameId,
                 gameName: gameName,
                 players: players
             }
