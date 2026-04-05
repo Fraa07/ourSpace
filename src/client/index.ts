@@ -1,6 +1,6 @@
 import { TICK_FREQUENCY } from '../common';
 import { UserInput } from './user-input';
-import { LobbyClient } from '../lobby';
+import { LobbyClient } from '../lobby/index';
 
 const playground = document.getElementById('playground') as HTMLCanvasElement;
 const ctx: CanvasRenderingContext2D = playground.getContext("2d")!;

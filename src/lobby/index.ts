@@ -1,8 +1,8 @@
-import { mod, Player, smoothChange } from './common';
-import { IncomingMsg, OutgoingMsg } from './server';
-import { Button, TextInput } from './client/ui-elements';
-import { GameServer } from './games/game';
-import { GuessGameServer } from './games/guess';
+import { PERSON_W, PERSON_H, Player, smoothChange } from '../common';
+import { IncomingMsg, OutgoingMsg } from '../server';
+import { Button, TextInput } from '../client/ui-elements';
+import { GameServer } from '../games/game';
+import { GuessGameServer } from '../games/guess';
 
 const PERSON_SPEED = 300;
 
@@ -95,8 +95,6 @@ type GameStartedMsg = {
     gameName: string;
     players: Record<string, Player>;
 };
-
-
 // -messaggi
 
 
@@ -109,9 +107,6 @@ const worldBounds = {
     bottom: worldH/2,
     right: worldW/2,
 };
-
-const personW = 40;
-const personH = 120;
 
 //////////////////////
 ////// SERVER ////////
@@ -395,10 +390,11 @@ export class LobbyServer {
 ////// CLIENT ////////
 //////////////////////
 
-import { getCharacterDrawFunction, getCharacterNames } from './client/characters';
-import { UserInput } from './client/user-input';
-import { GameClient } from './games/game';
-import { GuessGameClient } from './games/guess';
+import { CharacterSelect } from './character-select';
+import { getCharacterDrawFunction } from '../client/characters';
+import { UserInput } from '../client/user-input';
+import { GameClient } from '../games/game';
+import { GuessGameClient } from '../games/guess';
 
 type ClientPerson = Person & {
     xTarget: number;
@@ -414,13 +410,7 @@ export class LobbyClient {
     public prevY: number = 0;
     public camera: { x: number, y: number, zoom: number };
 
-    public characterNames: string[];
-    public selectedCharacterIndex: number;
-
-    public leftBtn: Button;
-    public rightBtn: Button;
-    public okBtn: Button;
-    public nameInput: TextInput;
+    public characterSelect: CharacterSelect;
 
     public startGameBtn: Button;
 
@@ -439,35 +429,18 @@ export class LobbyClient {
         this.camera = { x: 0, y: 0, zoom: 1.0 };
         this.people = {};
 
-        this.characterNames = getCharacterNames();
-        this.selectedCharacterIndex = 0;
-
-        this.nameInput = new TextInput(userInput, 'nickname');
-
-        this.leftBtn = new Button('<', userInput, () => {
-            this.selectedCharacterIndex = mod(this.selectedCharacterIndex + 1, this.characterNames.length);
+        this.characterSelect = new CharacterSelect(this.userInput, (name, character) => {
+            if (this.getMe()) return; // do nothing if already initialized
+            this.outgoingMessages.push({
+                kind: "init",
+                name: name,
+                character: character
+            });
         });
-        this.rightBtn = new Button('>', userInput, () => {
-            this.selectedCharacterIndex = mod(this.selectedCharacterIndex - 1, this.characterNames.length);
-        });
-        this.okBtn = new Button('ok', userInput, () => {
-            if (this.getMe()) return;
-            const name = this.nameInput.getValue() || '';
-            if (name.length) {
-                this.outgoingMessages.push({
-                    kind: "init",
-                    name: name,
-                    character: this.characterNames[this.selectedCharacterIndex]
-                });
-            }
-            else alert("insert a nickname")
-        });
-        this.okBtn.setColors({ main: "#58a515" })
 
         this.startGameBtn = new Button('propose game', userInput, () => {
             if (this.currentProposalId) {
                 if (this.isProposer) {
-                    // We're the proposer, start the game
                     this.outgoingMessages.push({
                         kind: 'startGame',
                         proposalId: this.currentProposalId
@@ -488,15 +461,6 @@ export class LobbyClient {
                 this.startGameBtn.setLabel('start game');
             }
         });
-        // this.joinGameBtn = new Button('join game', userInput, () => {
-        //     if (this.currentProposalId) {
-        //         this.gameProposalAcceptMessage = {
-        //             kind: 'gameProposalAccept',
-        //             proposalId: this.currentProposalId
-        //         };
-        //     }
-        // });
-        // this.joinGameBtn.setColors({ main: "#ff9900" });
     }
 
     draw(ctx: CanvasRenderingContext2D, dt: number) {
@@ -505,7 +469,7 @@ export class LobbyClient {
         } else {
             const me = this.getMe();
             if (me) this.drawLobby(ctx, me, dt);
-            else    this.drawCharacterSelect(ctx);
+            else this.characterSelect.draw(ctx);
         }
     }
 
@@ -520,10 +484,10 @@ export class LobbyClient {
         me.yTarget = me.yTarget + yMoveDirection * dt * PERSON_SPEED;
 
         // controllo che il giocatore non esca dallo spazio di gioco
-        if (me.yTarget - personH/2 < worldBounds.top) me.yTarget = worldBounds.top + personH/2 + EPSILON;
-        if (me.yTarget + personH/2 > worldBounds.bottom) me.yTarget = worldBounds.bottom - personH/2 - EPSILON;
-        if (me.xTarget - personW/2 < worldBounds.left) me.xTarget = worldBounds.left + personW/2 + EPSILON;
-        if (me.xTarget + personW/2 > worldBounds.right) me.xTarget = worldBounds.right - personW/2 - EPSILON;
+        if (me.yTarget - PERSON_H/2 < worldBounds.top) me.yTarget = worldBounds.top + PERSON_H/2 + EPSILON;
+        if (me.yTarget + PERSON_H/2 > worldBounds.bottom) me.yTarget = worldBounds.bottom - PERSON_H/2 - EPSILON;
+        if (me.xTarget - PERSON_W/2 < worldBounds.left) me.xTarget = worldBounds.left + PERSON_W/2 + EPSILON;
+        if (me.xTarget + PERSON_W/2 > worldBounds.right) me.xTarget = worldBounds.right - PERSON_W/2 - EPSILON;
 
         // la camera segue il giocatore
         this.camera.x = me.x;
@@ -556,7 +520,7 @@ export class LobbyClient {
                 person.y = smoothChange(person.y, person.yTarget, dt, 0.05);
 
             const drawPerson = getCharacterDrawFunction(person.character);
-            drawPerson(ctx, person.x, person.y, personW, personH, );
+            drawPerson(ctx, person.x, person.y, PERSON_W, PERSON_H, );
             this.drawPersonName(ctx, person);
         });
 
@@ -576,8 +540,8 @@ export class LobbyClient {
     }
 
     drawPersonName(ctx: CanvasRenderingContext2D, person: Person) {
-        const fontSize = Math.floor(personH * 0.15);
-        const nameY = person.y - personH/2 - fontSize - personH*0.08;
+        const fontSize = Math.floor(PERSON_H * 0.15);
+        const nameY = person.y - PERSON_H/2 - fontSize - PERSON_H*0.08;
         ctx.font = `${fontSize}px Arial`;
         const nameWidth = ctx.measureText(person.name).width;
         const padding = 4;
@@ -596,49 +560,7 @@ export class LobbyClient {
         ctx.fillText(person.name, person.x, nameY);
     }
 
-    drawCharacterSelect(ctx: CanvasRenderingContext2D) {
-        const { screenW, screenH } = this.userInput;
-        const side = Math.min(screenH, screenW);
 
-        ctx.save();
-
-        ctx.translate(screenW/2, screenH/2); // centra lo schermo
-
-        const borderWidth = 20;
-        ctx.beginPath();
-        ctx.rect(-side/2, -side/2, side, side);
-        ctx.clip();
-        ctx.strokeStyle = "#161616";
-        ctx.lineWidth = borderWidth;
-        ctx.fillStyle = "#acabab";
-        ctx.fill();
-        ctx.stroke();
-
-        // personaggio
-        const characterName = this.characterNames[this.selectedCharacterIndex];
-        const characterH = side * 0.5;
-        const characterW = characterH * personW / personH;
-        const drawPerson = getCharacterDrawFunction(characterName);
-        drawPerson(ctx, 0, 0, characterW, characterH);
-
-        const padding = borderWidth + 5;
-
-        // input nickname
-        const nameInputW = side * 0.7;
-        const nameInputH = side * 0.1;
-        this.nameInput.draw(ctx, -nameInputW/2, -side/2 + padding, nameInputW, nameInputH);
-
-        // bottoni
-        const btnWidth = side * 0.1;
-        const btnHeight = side  * 0.4;
-        this.rightBtn.draw(ctx, side/2 - btnWidth - padding, -btnHeight/2, btnWidth, btnHeight);
-        this.leftBtn.draw(ctx, -side/2 + padding, -btnHeight/2, btnWidth, btnHeight);
-        const okBtnW = side * 0.4;
-        const okBtnH = side * 0.1;
-        this.okBtn.draw(ctx, -okBtnW/2, side/2 - okBtnH - padding, okBtnW, okBtnH);
-
-        ctx.restore();
-    }
 
     handleMessage(message: LobbyServerMsg) {
         if (message.kind === "gameStarted") {

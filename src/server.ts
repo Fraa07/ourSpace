@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws';
 import {
     TICK_FREQUENCY
 } from "./common";
-import { LobbyServer } from './lobby';
+import { LobbyServer } from './lobby/index';
 
 export type IncomingMsg = {
     clientId: string,
