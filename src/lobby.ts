@@ -38,7 +38,6 @@ type LobbyServerMsg =
     | ServerUpdateMsg 
     | ServerExitMsg
     | GameStartedMsg
-    | GameEndedMsg
     | GameMsg;
 
 type ClientInitMsg = {
@@ -77,9 +76,7 @@ type GameStartedMsg = {
     players: Record<string, Player>;
 };
 
-type GameEndedMsg = {
-    kind: "gameEnded";
-};
+
 
 // -messaggi
 
@@ -480,10 +477,6 @@ export class LobbyClient {
             this.currentGame = new GuessGameClient(this.userInput, this.myId!);
             this.currentGame.init(message.players);
             this.currentGameId = message.gameId;
-        }
-        else if (message.kind === "gameEnded") {
-            this.currentGame = null;
-            this.currentGameId = null;
         }
         else if (message.kind === "game") {
             if (this.currentGame && message.gameId === this.currentGameId) {
