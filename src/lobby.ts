@@ -1,6 +1,8 @@
 import { mod, Player, smoothChange } from './common';
 import { IncomingMsg, OutgoingMsg } from './server';
 import { Button, TextInput } from './client/ui-elements';
+import { GameServer } from './games/game';
+import { GuessGameServer } from './games/guess';
 
 const PERSON_SPEED = 300;
 
@@ -77,20 +79,16 @@ const personH = 120;
 ////// SERVER ////////
 //////////////////////
 
-export type GameStartFunction = (
-    game: string,
-    players: Record<string, Player>
-) => void;
-
 export class LobbyServer {
     public people: Record<string, Person>;
     public outgoingMessages: OutgoingMsg[];
-    public onGameStart: GameStartFunction;
+    public currentGame: GameServer | null = null;
+    public currentGameId: string | null = null;
+    private gameIdCounter: number = 0;
 
-    constructor(onGameStart: GameStartFunction) {
+    constructor() {
         this.people = {};
         this.outgoingMessages = [];
-        this.onGameStart = onGameStart;
     }
 
     clientConnected(id: string) {
@@ -115,17 +113,31 @@ export class LobbyServer {
     }
 
     tick(incomingMessages: IncomingMsg[], dt: number): OutgoingMsg[] {
-        const messages: OutgoingMsg[] = this.outgoingMessages;
-        this.outgoingMessages = [];
+        const messages: OutgoingMsg[] = [];
         const updatedPeople: Record<string, Person> = {};
+        
+        // Add any pending outgoing messages
+        messages.push(...this.outgoingMessages);
+        this.outgoingMessages = [];
 
+        // Separate lobby messages from game messages
+        const lobbyMessages: IncomingMsg[] = [];
+        const gameMessages: IncomingMsg[] = [];
+        
         incomingMessages.forEach(message => {
+            if (message.payload.gameId) {
+                gameMessages.push(message);
+            } else {
+                lobbyMessages.push(message);
+            }
+        });
+        
+        // Process lobby messages
+        lobbyMessages.forEach(message => {
             const clientId: string = message.clientId;
             const payload: LobbyClientMsg = message.payload;
 
             if (payload.kind === "init") {
-                console.log("gotten INIT");
-                console.log(message);
                 if (Object.values(this.people).find(p => p.name === payload.name)) {
                     this.outgoingMessages.push({
                         clientId: clientId,
@@ -152,11 +164,26 @@ export class LobbyServer {
                 updatedPeople[clientId] = person;
             }
             else if (payload.kind === "startGame") {
-                console.log("starting game");
-                const players = people2players(this.people);
-                this.onGameStart(payload.gameName, players);
+                // only one game at a time, for now
+                if (!this.currentGame) {
+                    const gameStartedMessage = this.startGame(payload.gameName);
+                    if (gameStartedMessage) messages.push(gameStartedMessage);
+                }
             }
         });
+        
+        // process game messages if in game
+        if (this.currentGame) {
+            const gameOutgoingMessages = this.currentGame.tick(gameMessages, dt);
+            gameOutgoingMessages.forEach(m => m.payload.gameId = this.currentGameId);
+            messages.push(...gameOutgoingMessages);
+            
+            if (this.currentGame.isFinished()) {
+                this.currentGame = null;
+                this.currentGameId = null;
+            }
+        }
+
         // mandiamo il messaggio "update" a tutti i client
         const updateMessage: ServerUpdateMsg = {
             kind: "update",
@@ -166,15 +193,38 @@ export class LobbyServer {
 
         return messages;
     }
-}
+    
+    private startGame(gameName: string): OutgoingMsg | null {
+        if (gameName === 'guess')
+            this.currentGame = new GuessGameServer();
+        // else if (gameName === 'pong')
+        //     currentGame = new PongGameServer();
 
-const people2players = (people: Record<string, Person>): Record<string, Player> => {
-    const players = {};
-    Object.entries(people).forEach(([id, person]) => {
-        const { name, character } = person;
-        players[id] = { name, character };
-    })
-    return players;
+        if (!this.currentGame) return null;
+
+        this.gameIdCounter += 1;
+        this.currentGameId = this.gameIdCounter + '';
+        const players = this.getPlayers();
+        this.currentGame.init(players);
+        
+        return {
+            payload: {
+                kind: "gameStarted",
+                gameId: this.currentGameId,
+                gameName: gameName,
+                players: players
+            }
+        };
+    }
+    
+    private getPlayers(): Record<string, Player> {
+        const players = {};
+        Object.entries(this.people).forEach(([id, person]) => {
+            const { name, character } = person;
+            players[id] = { name, character };
+        })
+        return players;
+    }
 }
 
 //////////////////////
@@ -183,6 +233,8 @@ const people2players = (people: Record<string, Person>): Record<string, Player> 
 
 import { getCharacterDrawFunction, getCharacterNames } from './client/characters';
 import { UserInput } from './client/user-input';
+import { GameClient } from './games/game';
+import { GuessGameClient } from './games/guess';
 
 type ClientPerson = Person & {
     xTarget: number;
@@ -210,6 +262,9 @@ export class LobbyClient {
 
     public initMessage: ClientInitMsg | null = null;
     public startGameMessage: ClientStartGameMsg | null = null;
+    
+    public currentGame: GameClient | null = null;
+    public currentGameId: string | null = null;
 
     constructor(userInput: UserInput) {
         this.userInput = userInput;
@@ -251,9 +306,13 @@ export class LobbyClient {
     }
 
     draw(ctx: CanvasRenderingContext2D, dt: number) {
-        const me = this.getMe();
-        if (me) this.drawLobby(ctx, me, dt);
-        else    this.drawCharacterSelect(ctx);
+        if (this.currentGame) {
+            this.currentGame.draw(ctx, dt);
+        } else {
+            const me = this.getMe();
+            if (me) this.drawLobby(ctx, me, dt);
+            else    this.drawCharacterSelect(ctx);
+        }
     }
 
     drawLobby(ctx: CanvasRenderingContext2D, me: ClientPerson, dt: number) {
@@ -376,8 +435,21 @@ export class LobbyClient {
         ctx.restore();
     }
 
-    handleMessage(message: LobbyServerMsg) {
-        if (message.kind === "init") {
+    handleMessage(message: LobbyServerMsg | any) {
+        if (message.kind === "gameStarted") {
+            if (this.currentGame) return;
+            this.currentGame = new GuessGameClient(this.userInput, this.myId!);
+            this.currentGame.init(message.players);
+            this.currentGameId = message.gameId;
+        }
+        else if (message.kind === "gameEnded") {
+            this.currentGame = null;
+            this.currentGameId = null;
+        }
+        else if (this.currentGame && message.gameId === this.currentGameId) {
+            this.currentGame.handleMessage(message);
+        }
+        else if (message.kind === "init") {
             this.myId = message.yourId;
             const clientPeople = message.people as Record<string, ClientPerson>;
             Object.values(clientPeople).forEach(person => {
@@ -390,7 +462,7 @@ export class LobbyClient {
             alert("nickname is already taken");
         }
         else if (message.kind === "update") {
-            Object.entries(message.people).forEach(entry => {
+            Object.entries(message.people as Record<string, Person>).forEach(entry => {
                 const id: string = entry[0];
                 const updatedPerson: Person = entry[1];
                 if (id !== this.myId) {
@@ -413,8 +485,8 @@ export class LobbyClient {
         }
     }
 
-    flushMessages(): LobbyClientMsg[] {
-        const messages: LobbyClientMsg[] = [];
+    flushMessages(): any[] {
+        const messages: any[] = [];
 
         if (this.initMessage) {
             messages.push(this.initMessage);
@@ -437,6 +509,20 @@ export class LobbyClient {
                     x: me.x, 
                     y: me.y
                 });
+            }
+        }
+        
+        if (this.currentGame) {
+            if (this.currentGame.isFinished()) {
+                this.currentGame = null;
+                this.currentGameId = null;
+            }
+            else {
+                const gameMessages = this.currentGame.flushMessages();
+                gameMessages.forEach((message) => {
+                    message.gameId = this.currentGameId;
+                    messages.push(message);
+                })
             }
         }
 
