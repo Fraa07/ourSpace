@@ -234,9 +234,11 @@ export class LobbyServer {
             }
             else if (payload.kind === "move") {
                 const person = this.people[clientId]
-                person.x = payload.x 
-                person.y = payload.y
-                updatedPeople[clientId] = person;
+                if (person) {
+                    person.x = payload.x
+                    person.y = payload.y
+                    updatedPeople[clientId] = person;
+                }
             }
             else if (payload.kind === "gameProposal") {
                 this.handleGameProposal(clientId, payload.gameKey);
