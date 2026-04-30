@@ -1,0 +1,805 @@
+Manuale Tecnico Integrale: Clone di Stick Fight in TypeScript con ECS, Fisica 2D e Sistemi Gameplay
+
+Obiettivo progettuale: costruire una base engine deterministica, scalabile a migliaia di entità, con ragdoll fisico, collisioni continue anti-tunneling, IK runtime e feedback ad alta leggibilità percettiva.
+
+Vincolo architetturale: separare rigorosamente dati, simulazione e presentazione.
+
+====================================================================
+1) Architettura ECS Profonda
+====================================================================
+
+1.1 Principio Data-Oriented e cache locality
+
+In un ECS reale la performance nasce da tre scelte:
+1. Memoria contigua per i componenti dello stesso tipo (Structure of Arrays).
+2. Iterazione lineare senza branch non necessari.
+3. Query compilate/cacheate per evitare ricostruzione per frame.
+
+Se un sistema legge Position e Velocity su 20.000 entità, il costo dominante è la banda memoria, non la CPU ALU.
+
+Scelte pratiche:
+- niente mappe oggetto per ogni entità;
+- niente allocazioni runtime nei loop di update;
+- niente oggetti temporanei per vettori nei sistemi hot-path.
+
+1.2 Firma componenti e bitmask
+
+Ad ogni entità associ una firma bitmask:
+- bit i = 1 se l’entità possiede il componente i.
+- query = maschera include + maschera exclude.
+
+Test appartenenza:
+
+match = ((signature & includeMask) = includeMask) and ((signature & excludeMask) = 0)
+
+Con massimo 64 componenti puoi usare uint64 / bigint.
+
+1.3 Component Store performante: Sparse Set paginato
+
+Obiettivi:
+- add/remove/get in O(1) medio;
+- iterazione densa;
+- stabilità prestazionale con entityId grandi.
+
+Implementazione:
+- denseEntities: array compatto di entityId.
+- denseData: array compatto di component data, stesso indice di denseEntities.
+- sparsePages: pagine Int32Array che mappano entityId -> denseIndex.
+- absent = -1.
+
+Codice completo del gestore componenti (TypeScript):
+
+export type Entity = number;
+export const INVALID_ENTITY = -1;
+
+export interface ComponentStore<T> {
+  has(entity: Entity): boolean;
+  get(entity: Entity): T | undefined;
+  add(entity: Entity, value: T): void;
+  remove(entity: Entity): boolean;
+  clear(): void;
+  forEach(fn: (entity: Entity, value: T, denseIndex: number) => void): void;
+  readonly size: number;
+  entities(): ReadonlyArray<Entity>;
+  values(): ReadonlyArray<T>;
+}
+
+export class SparseSetComponentStore<T> implements ComponentStore<T> {
+  private static readonly PAGE_BITS = 10;
+  private static readonly PAGE_SIZE = 1 << SparseSetComponentStore.PAGE_BITS;
+  private static readonly PAGE_MASK = SparseSetComponentStore.PAGE_SIZE - 1;
+  private static readonly ABSENT = -1;
+
+  private denseEntities: number[] = [];
+  private denseData: T[] = [];
+  private sparsePages: Int32Array[] = [];
+
+  get size(): number {
+    return this.denseEntities.length;
+  }
+
+  entities(): ReadonlyArray<Entity> {
+    return this.denseEntities;
+  }
+
+  values(): ReadonlyArray<T> {
+    return this.denseData;
+  }
+
+  has(entity: Entity): boolean {
+    const denseIndex = this.getDenseIndex(entity);
+    return denseIndex !== SparseSetComponentStore.ABSENT;
+  }
+
+  get(entity: Entity): T | undefined {
+    const denseIndex = this.getDenseIndex(entity);
+    if (denseIndex === SparseSetComponentStore.ABSENT) return undefined;
+    return this.denseData[denseIndex];
+  }
+
+  add(entity: Entity, value: T): void {
+    const current = this.getDenseIndex(entity);
+    if (current !== SparseSetComponentStore.ABSENT) {
+      this.denseData[current] = value;
+      return;
+    }
+
+    const denseIndex = this.denseEntities.length;
+    this.denseEntities.push(entity);
+    this.denseData.push(value);
+    this.setDenseIndex(entity, denseIndex);
+  }
+
+  remove(entity: Entity): boolean {
+    const denseIndex = this.getDenseIndex(entity);
+    if (denseIndex === SparseSetComponentStore.ABSENT) return false;
+
+    const lastIndex = this.denseEntities.length - 1;
+    const lastEntity = this.denseEntities[lastIndex];
+
+    this.denseEntities[denseIndex] = lastEntity;
+    this.denseData[denseIndex] = this.denseData[lastIndex];
+
+    this.setDenseIndex(lastEntity, denseIndex);
+    this.setDenseIndex(entity, SparseSetComponentStore.ABSENT);
+
+    this.denseEntities.pop();
+    this.denseData.pop();
+    return true;
+  }
+
+  clear(): void {
+    this.denseEntities.length = 0;
+    this.denseData.length = 0;
+    this.sparsePages.length = 0;
+  }
+
+  forEach(fn: (entity: Entity, value: T, denseIndex: number) => void): void {
+    const ents = this.denseEntities;
+    const vals = this.denseData;
+    for (let i = 0; i < ents.length; i++) {
+      fn(ents[i], vals[i], i);
+    }
+  }
+
+  private pageIndex(entity: Entity): number {
+    return entity >> SparseSetComponentStore.PAGE_BITS;
+  }
+
+  private offsetInPage(entity: Entity): number {
+    return entity & SparseSetComponentStore.PAGE_MASK;
+  }
+
+  private getDenseIndex(entity: Entity): number {
+    if (entity < 0) return SparseSetComponentStore.ABSENT;
+    const p = this.pageIndex(entity);
+    const page = this.sparsePages[p];
+    if (!page) return SparseSetComponentStore.ABSENT;
+    return page[this.offsetInPage(entity)];
+  }
+
+  private setDenseIndex(entity: Entity, denseIndex: number): void {
+    const p = this.pageIndex(entity);
+    let page = this.sparsePages[p];
+    if (!page) {
+      page = new Int32Array(SparseSetComponentStore.PAGE_SIZE);
+      page.fill(SparseSetComponentStore.ABSENT);
+      this.sparsePages[p] = page;
+    }
+    page[this.offsetInPage(entity)] = denseIndex;
+  }
+}
+
+1.4 World Manager scalabile
+
+Tipi principali:
+- create/destroy entity con free-list;
+- registrazione tipi componente;
+- add/remove component con firma;
+- query cache.
+
+Codice:
+
+type ComponentTypeId = number;
+
+interface QueryDefinition {
+  includeMask: bigint;
+  excludeMask: bigint;
+  entities: Entity[];
+  dirty: boolean;
+}
+
+export class World {
+  private nextEntity = 0;
+  private freeList: Entity[] = [];
+
+  private alive = new Set<Entity>();
+  private signatures = new Map<Entity, bigint>();
+
+  private componentTypeCounter = 0;
+  private componentTypeMap = new Map<string, ComponentTypeId>();
+  private stores = new Map<ComponentTypeId, ComponentStore<unknown>>();
+
+  private queries = new Map<string, QueryDefinition>();
+
+  createEntity(): Entity {
+    const entity = this.freeList.length > 0 ? this.freeList.pop()! : this.nextEntity++;
+    this.alive.add(entity);
+    this.signatures.set(entity, 0n);
+    this.invalidateQueries();
+    return entity;
+  }
+
+  destroyEntity(entity: Entity): void {
+    if (!this.alive.has(entity)) return;
+
+    const signature = this.signatures.get(entity) ?? 0n;
+    for (const [typeId, store] of this.stores) {
+      const bit = 1n << BigInt(typeId);
+      if ((signature & bit) !== 0n) {
+        (store as ComponentStore<unknown>).remove(entity);
+      }
+    }
+
+    this.signatures.delete(entity);
+    this.alive.delete(entity);
+    this.freeList.push(entity);
+    this.invalidateQueries();
+  }
+
+  registerComponentType<T>(name: string, store?: ComponentStore<T>): ComponentTypeId {
+    const existing = this.componentTypeMap.get(name);
+    if (existing !== undefined) return existing;
+
+    const typeId = this.componentTypeCounter++;
+    if (typeId >= 64) {
+      throw new Error("World supporta massimo 64 componenti con firma bigint singola.");
+    }
+
+    this.componentTypeMap.set(name, typeId);
+    this.stores.set(typeId, (store ?? new SparseSetComponentStore<T>()) as ComponentStore<unknown>);
+    return typeId;
+  }
+
+  getComponentTypeId(name: string): ComponentTypeId {
+    const id = this.componentTypeMap.get(name);
+    if (id === undefined) throw new Error("Tipo componente non registrato: " + name);
+    return id;
+  }
+
+  addComponent<T>(entity: Entity, componentName: string, value: T): void {
+    this.assertAlive(entity);
+    const typeId = this.getComponentTypeId(componentName);
+    const store = this.stores.get(typeId)! as ComponentStore<T>;
+    store.add(entity, value);
+
+    const bit = 1n << BigInt(typeId);
+    const sig = this.signatures.get(entity)!;
+    this.signatures.set(entity, sig | bit);
+    this.invalidateQueries();
+  }
+
+  removeComponent(entity: Entity, componentName: string): void {
+    if (!this.alive.has(entity)) return;
+    const typeId = this.getComponentTypeId(componentName);
+    const store = this.stores.get(typeId)! as ComponentStore<unknown>;
+    if (!store.remove(entity)) return;
+
+    const bit = 1n << BigInt(typeId);
+    const sig = this.signatures.get(entity)!;
+    this.signatures.set(entity, sig & ~bit);
+    this.invalidateQueries();
+  }
+
+  getComponent<T>(entity: Entity, componentName: string): T | undefined {
+    const typeId = this.getComponentTypeId(componentName);
+    const store = this.stores.get(typeId)! as ComponentStore<T>;
+    return store.get(entity);
+  }
+
+  hasComponent(entity: Entity, componentName: string): boolean {
+    const typeId = this.getComponentTypeId(componentName);
+    const bit = 1n << BigInt(typeId);
+    const sig = this.signatures.get(entity) ?? 0n;
+    return (sig & bit) !== 0n;
+  }
+
+  query(include: string[], exclude: string[] = []): Entity[] {
+    const includeMask = this.maskFromComponentNames(include);
+    const excludeMask = this.maskFromComponentNames(exclude);
+    const key = includeMask.toString() + "|" + excludeMask.toString();
+
+    let q = this.queries.get(key);
+    if (!q) {
+      q = { includeMask, excludeMask, entities: [], dirty: true };
+      this.queries.set(key, q);
+    }
+
+    if (q.dirty) {
+      q.entities.length = 0;
+      for (const entity of this.alive) {
+        const sig = this.signatures.get(entity) ?? 0n;
+        const includeOk = (sig & q.includeMask) === q.includeMask;
+        const excludeOk = (sig & q.excludeMask) === 0n;
+        if (includeOk && excludeOk) q.entities.push(entity);
+      }
+      q.dirty = false;
+    }
+
+    return q.entities;
+  }
+
+  private maskFromComponentNames(names: string[]): bigint {
+    let mask = 0n;
+    for (const name of names) {
+      const typeId = this.getComponentTypeId(name);
+      mask |= 1n << BigInt(typeId);
+    }
+    return mask;
+  }
+
+  private invalidateQueries(): void {
+    for (const q of this.queries.values()) q.dirty = true;
+  }
+
+  private assertAlive(entity: Entity): void {
+    if (!this.alive.has(entity)) {
+      throw new Error("Entità non viva: " + entity);
+    }
+  }
+}
+
+====================================================================
+2) Matematica Vettoriale Avanzata
+====================================================================
+
+Formule principali:
+Dot Product:
+a · b = ax * bx + ay * by = |a| |b| cos(theta)
+
+Cross 2D (pseudo-scalare):
+a x b = ax * by - ay * bx
+
+Riflessione su normale n normalizzata:
+v_r = v - 2 (v · n) n
+
+Lerp:
+p(t) = a + t (b - a), t in [0,1]
+
+Lerp temporalmente stabile:
+alpha = 1 - exp(-k dt)
+cam_new = lerp(cam_old, target, alpha)
+
+Codice Vec2:
+
+export interface Vec2 {
+  x: number;
+  y: number;
+}
+
+export const Vec2 = {
+  create(x = 0, y = 0): Vec2 { return { x, y }; },
+  add(a: Vec2, b: Vec2): Vec2 { return { x: a.x + b.x, y: a.y + b.y }; },
+  sub(a: Vec2, b: Vec2): Vec2 { return { x: a.x - b.x, y: a.y - b.y }; },
+  scale(v: Vec2, s: number): Vec2 { return { x: v.x * s, y: v.y * s }; },
+  length(v: Vec2): number { return Math.hypot(v.x, v.y); },
+  lengthSq(v: Vec2): number { return v.x * v.x + v.y * v.y; },
+  normalize(v: Vec2): Vec2 {
+    const len = Math.hypot(v.x, v.y);
+    if (len <= 1e-8) return { x: 0, y: 0 };
+    const inv = 1 / len;
+    return { x: v.x * inv, y: v.y * inv };
+  },
+  dot(a: Vec2, b: Vec2): number { return a.x * b.x + a.y * b.y; },
+  cross2D(a: Vec2, b: Vec2): number { return a.x * b.y - a.y * b.x; },
+  reflect(v: Vec2, n: Vec2): Vec2 {
+    const d = Vec2.dot(v, n);
+    return { x: v.x - 2 * d * n.x, y: v.y - 2 * d * n.y };
+  },
+  lerp(a: Vec2, b: Vec2, t: number): Vec2 {
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+};
+
+====================================================================
+3) Fisica di Verlet e Ragdoll
+====================================================================
+
+Euler esplicito:
+v(t+dt) = v(t) + a(t) dt
+x(t+dt) = x(t) + v(t+dt) dt
+
+Verlet position-based:
+x(t+dt) = x(t) + (x(t) - x(t-dt)) + a(t) dt^2
+
+Codice base particelle + constraint solver:
+
+export interface VerletParticle {
+  x: number;
+  y: number;
+  prevX: number;
+  prevY: number;
+  ax: number;
+  ay: number;
+  invMass: number;
+  damping: number;
+  radius: number;
+}
+
+export interface DistanceConstraint {
+  a: number;
+  b: number;
+  restLength: number;
+  stiffness: number;
+}
+
+export class VerletWorld {
+  particles: VerletParticle[] = [];
+  constraints: DistanceConstraint[] = [];
+  gravityX = 0;
+  gravityY = 1200;
+
+  addParticle(p: VerletParticle): number {
+    this.particles.push(p);
+    return this.particles.length - 1;
+  }
+
+  addConstraint(c: DistanceConstraint): void {
+    this.constraints.push(c);
+  }
+
+  step(dt: number, iterations: number, substeps: number): void {
+    const h = dt / substeps;
+    for (let s = 0; s < substeps; s++) {
+      this.integrate(h);
+      for (let i = 0; i < iterations; i++) {
+        this.solveDistanceConstraints();
+      }
+    }
+  }
+
+  private integrate(dt: number): void {
+    const dt2 = dt * dt;
+    for (const p of this.particles) {
+      if (p.invMass === 0) continue;
+      const vx = (p.x - p.prevX) * p.damping;
+      const vy = (p.y - p.prevY) * p.damping;
+
+      p.prevX = p.x;
+      p.prevY = p.y;
+
+      p.ax += this.gravityX;
+      p.ay += this.gravityY;
+
+      p.x += vx + p.ax * dt2;
+      p.y += vy + p.ay * dt2;
+
+      p.ax = 0;
+      p.ay = 0;
+    }
+  }
+
+  private solveDistanceConstraints(): void {
+    for (const c of this.constraints) {
+      const pa = this.particles[c.a];
+      const pb = this.particles[c.b];
+
+      const dx = pb.x - pa.x;
+      const dy = pb.y - pa.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq <= 1e-12) continue;
+
+      const dist = Math.sqrt(distSq);
+      const diff = (dist - c.restLength) / dist;
+
+      const wa = pa.invMass;
+      const wb = pb.invMass;
+      const wSum = wa + wb;
+      if (wSum <= 0) continue;
+
+      const corr = c.stiffness * diff;
+      const corrX = dx * corr;
+      const corrY = dy * corr;
+
+      pa.x += corrX * (wa / wSum);
+      pa.y += corrY * (wa / wSum);
+      pb.x -= corrX * (wb / wSum);
+      pb.y -= corrY * (wb / wSum);
+    }
+  }
+}
+
+====================================================================
+4) Collisioni Swept AABB e Raycasting
+====================================================================
+
+Tempo impatto continuo:
+entryTime = max(xEntry, yEntry)
+exitTime = min(xExit, yExit)
+
+Collisione valida se:
+entryTime <= exitTime e entryTime in [0,1]
+
+Codice getCollisionTime:
+
+export interface AABB {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface SweepResult {
+  hit: boolean;
+  t: number;
+  nx: number;
+  ny: number;
+}
+
+export function getCollisionTime(
+  moving: AABB,
+  velocityX: number,
+  velocityY: number,
+  target: AABB
+): SweepResult {
+  let xEntry: number;
+  let yEntry: number;
+  let xExit: number;
+  let yExit: number;
+
+  if (velocityX > 0) {
+    xEntry = (target.minX - moving.maxX) / velocityX;
+    xExit = (target.maxX - moving.minX) / velocityX;
+  } else if (velocityX < 0) {
+    xEntry = (target.maxX - moving.minX) / velocityX;
+    xExit = (target.minX - moving.maxX) / velocityX;
+  } else {
+    xEntry = Number.NEGATIVE_INFINITY;
+    xExit = Number.POSITIVE_INFINITY;
+  }
+
+  if (velocityY > 0) {
+    yEntry = (target.minY - moving.maxY) / velocityY;
+    yExit = (target.maxY - moving.minY) / velocityY;
+  } else if (velocityY < 0) {
+    yEntry = (target.maxY - moving.minY) / velocityY;
+    yExit = (target.minY - moving.maxY) / velocityY;
+  } else {
+    yEntry = Number.NEGATIVE_INFINITY;
+    yExit = Number.POSITIVE_INFINITY;
+  }
+
+  const entryTime = Math.max(xEntry, yEntry);
+  const exitTime = Math.min(xExit, yExit);
+
+  if (entryTime > exitTime) return { hit: false, t: 1, nx: 0, ny: 0 };
+  if (entryTime < 0 || entryTime > 1) return { hit: false, t: 1, nx: 0, ny: 0 };
+
+  let nx = 0;
+  let ny = 0;
+  if (xEntry > yEntry) nx = velocityX > 0 ? -1 : 1;
+  else ny = velocityY > 0 ? -1 : 1;
+
+  return { hit: true, t: entryTime, nx, ny };
+}
+
+====================================================================
+5) Cinematica Inversa (IK) e Animazione
+====================================================================
+
+Legge del coseno per braccio a due snodi:
+cos(theta2) = (L1^2 + L2^2 - d^2) / (2 L1 L2)
+
+baseAngle = atan2(dy, dx)
+shoulderOffset = acos((L1^2 + d^2 - L2^2) / (2 L1 d))
+
+Codice runtime:
+
+export interface IK2BoneResult {
+  shoulderAngle: number;
+  elbowAngle: number;
+  elbowWorldAngle: number;
+  elbowX: number;
+  elbowY: number;
+  handX: number;
+  handY: number;
+  reachable: boolean;
+}
+
+export function solveIK2Bone(
+  shoulderX: number,
+  shoulderY: number,
+  targetX: number,
+  targetY: number,
+  upperLen: number,
+  lowerLen: number,
+  bendDirection: 1 | -1
+): IK2BoneResult {
+  const dx = targetX - shoulderX;
+  const dy = targetY - shoulderY;
+  const dist = Math.hypot(dx, dy);
+
+  const minReach = Math.abs(upperLen - lowerLen) + 1e-6;
+  const maxReach = upperLen + lowerLen - 1e-6;
+  const clampedDist = Math.min(Math.max(dist, minReach), maxReach);
+  const reachable = dist >= minReach && dist <= maxReach;
+
+  const baseAngle = Math.atan2(dy, dx);
+
+  let cosElbow = (upperLen * upperLen + lowerLen * lowerLen - clampedDist * clampedDist) / (2 * upperLen * lowerLen);
+  cosElbow = Math.max(-1, Math.min(1, cosElbow));
+  const elbowInner = Math.acos(cosElbow);
+
+  let cosShoulderOffset = (upperLen * upperLen + clampedDist * clampedDist - lowerLen * lowerLen) / (2 * upperLen * clampedDist);
+  cosShoulderOffset = Math.max(-1, Math.min(1, cosShoulderOffset));
+  const shoulderOffset = Math.acos(cosShoulderOffset);
+
+  const shoulderAngle = baseAngle - bendDirection * shoulderOffset;
+  const elbowWorldAngle = shoulderAngle + bendDirection * (Math.PI - elbowInner);
+  const elbowAngle = bendDirection * (Math.PI - elbowInner);
+
+  const elbowX = shoulderX + Math.cos(shoulderAngle) * upperLen;
+  const elbowY = shoulderY + Math.sin(shoulderAngle) * upperLen;
+
+  const handX = elbowX + Math.cos(elbowWorldAngle) * lowerLen;
+  const handY = elbowY + Math.sin(elbowWorldAngle) * lowerLen;
+
+  return {
+    shoulderAngle,
+    elbowAngle,
+    elbowWorldAngle,
+    elbowX,
+    elbowY,
+    handX,
+    handY,
+    reachable
+  };
+}
+
+====================================================================
+6) Sistemi di Armi e Rinculo
+====================================================================
+
+Object pooling bullets (zero allocazioni in combat):
+
+export interface Bullet {
+  active: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  ttl: number;
+  damage: number;
+  ownerEntity: number;
+}
+
+export class BulletPool {
+  private bullets: Bullet[];
+
+  constructor(capacity: number) {
+    this.bullets = new Array(capacity);
+    for (let i = 0; i < capacity; i++) {
+      this.bullets[i] = {
+        active: false,
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        radius: 2,
+        ttl: 0,
+        damage: 0,
+        ownerEntity: -1
+      };
+    }
+  }
+
+  spawn(x: number, y: number, dirX: number, dirY: number, speed: number, ttl: number, damage: number, ownerEntity: number): Bullet | null {
+    const len = Math.hypot(dirX, dirY);
+    if (len <= 1e-8) return null;
+    const ndx = dirX / len;
+    const ndy = dirY / len;
+
+    for (let i = 0; i < this.bullets.length; i++) {
+      const b = this.bullets[i];
+      if (!b.active) {
+        b.active = true;
+        b.x = x;
+        b.y = y;
+        b.vx = ndx * speed;
+        b.vy = ndy * speed;
+        b.ttl = ttl;
+        b.damage = damage;
+        b.ownerEntity = ownerEntity;
+        return b;
+      }
+    }
+    return null;
+  }
+
+  update(dt: number): void {
+    for (const b of this.bullets) {
+      if (!b.active) continue;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.ttl -= dt;
+      if (b.ttl <= 0) b.active = false;
+    }
+  }
+}
+
+Rinculo su corpo Verlet:
+
+export function applyRecoilToParticle(
+  p: VerletParticle,
+  recoilDirX: number,
+  recoilDirY: number,
+  recoilStrength: number
+): void {
+  if (p.invMass <= 0) return;
+  const m = 1 / p.invMass;
+
+  const len = Math.hypot(recoilDirX, recoilDirY);
+  if (len <= 1e-8) return;
+
+  const nx = recoilDirX / len;
+  const ny = recoilDirY / len;
+
+  const jx = -nx * recoilStrength;
+  const jy = -ny * recoilStrength;
+
+  const dvx = jx / m;
+  const dvy = jy / m;
+
+  p.prevX -= dvx;
+  p.prevY -= dvy;
+}
+
+====================================================================
+7) Juice e Feedback
+====================================================================
+
+Screen shake trauma-based:
+shake = trauma^power
+trauma = max(0, trauma - decay * dt)
+
+Hit-stop:
+- accumula freezeTime;
+- se freezeTime > 0, timeScale = 0 (o valore ridotto);
+- gameplay update usa dt scalato.
+
+Codice:
+
+export interface TraumaShake {
+  trauma: number;
+  decayPerSecond: number;
+  power: number;
+  maxOffsetX: number;
+  maxOffsetY: number;
+  maxAngle: number;
+  time: number;
+  frequency: number;
+}
+
+export class HitStopController {
+  freezeTime = 0;
+  minTimeScale = 0;
+
+  trigger(duration: number): void {
+    this.freezeTime = Math.max(this.freezeTime, duration);
+  }
+
+  update(dt: number): number {
+    if (this.freezeTime > 0) {
+      this.freezeTime -= dt;
+      if (this.freezeTime > 0) return this.minTimeScale;
+    }
+    return 1;
+  }
+}
+
+====================================================================
+Pipeline frame consigliata
+====================================================================
+
+1. Input
+2. IK target
+3. Fire + bullet spawn
+4. Recoil
+5. Physics substeps + constraints + swept collision
+6. Damage events
+7. Trauma + hit-stop
+8. Camera follow + shake
+9. Render
+
+====================================================================
+Parametri iniziali consigliati
+====================================================================
+
+- dt sim fisso: 1/120 s
+- substeps Verlet: 2
+- iterations constraints: 8..12
+- damping: 0.995..0.999
+- stiffness ossa: 0.7..0.95
+- trauma decay: 1.2..2.0
+- camera stiffness: 8..14
