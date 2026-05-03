@@ -52,6 +52,10 @@ export class CharacterSelect {
         this.okBtn.setColors({ main: "#58a515" });
     }
     
+    resetSelection() {
+        this.selectionIsDone = false;
+    }
+
     draw(ctx: CanvasRenderingContext2D) {
         const { screenW, screenH } = this.userInput;
         const screenSide = Math.min(screenH, screenW);

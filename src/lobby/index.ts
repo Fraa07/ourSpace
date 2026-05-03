@@ -560,6 +560,7 @@ export class LobbyClient {
         }
         else if (message.kind === "nameIsTaken") {
             alert("nickname is already taken");
+            this.characterSelect.resetSelection();
         }
         else if (message.kind === "update") {
             const updateMsg = message;
