@@ -571,7 +571,7 @@ export class MinecraftDiamondRushClient extends GameClient {
         const panelW = 280;
         const panelX = this.userInput.screenW - panelW - 12;
         const panelY = 72;
-        const panelH = Math.min(this.userInput.screenH - panelY - 24, 70 + MC2D_RECIPES.length * 50);
+        const panelH = Math.min(this.userInput.screenH - panelY, 250 + MC2D_RECIPES.length * 50);
         ctx.fillStyle = "rgba(3, 7, 18, 0.72)";
         ctx.fillRect(panelX, panelY, panelW, panelH);
         ctx.strokeStyle = "rgba(248, 250, 252, 0.18)";
@@ -602,6 +602,28 @@ export class MinecraftDiamondRushClient extends GameClient {
             ctx.fillStyle = "#cbd5e1";
             ctx.fillText(materials, panelX + 12, cursorY + 16);
             cursorY += 50;
+        });
+
+        cursorY += 8;
+        ctx.fillStyle = "#f8fafc";
+        ctx.font = "bold 15px monospace";
+        ctx.fillText("Base controls", panelX + 12, cursorY);
+
+        ctx.font = "12px monospace";
+        ctx.fillStyle = "#cbd5e1";
+        const controls = [
+            "A/D move",
+            "W or Space jump",
+            "Mouse aim",
+            "left click mine",
+            "right click place",
+            "F attack",
+            "Z/X/C select block",
+            "1-5 craft"
+        ];
+
+        controls.forEach((line, index) => {
+            ctx.fillText(line, panelX + 12, cursorY + 20 + index * 16);
         });
     }
 
