@@ -1,4 +1,5 @@
-import { PERSON_W, PERSON_H, Player, smoothChange } from '../common';
+import { PERSON_W, PERSON_H, Rectangle, Player, smoothChange, getCollisionSide } from '../common';
+import { Building } from './things';
 import { IncomingMsg, OutgoingMsg } from '../server';
 import { Button } from '../client/ui-elements';
 import { GameServer } from '../games/game';
@@ -113,7 +114,12 @@ type LobbyClientMsg =
 
 const EPSILON = 0.0001;
 
-const worldW = 1000, worldH = 600;
+const worldW = 2000, worldH = 1200;
+
+// Buildings in the lobby
+const buildings: Building[] = [
+    new Building({ x: 200, y: -100, w: 600, h: 450 }, 12),
+];
 const worldBounds = {
     top: -worldH/2,
     left: -worldW/2,
@@ -235,8 +241,32 @@ export class LobbyServer {
             else if (payload.kind === "move") {
                 const person = this.people[clientId]
                 if (person) {
-                    person.x = payload.x
-                    person.y = payload.y
+                    let newX = payload.x;
+                    let newY = payload.y;
+
+                    // Collision with buildings — push back if overlapping
+                    const playerRect: Rectangle = {
+                        x: newX - PERSON_W / 2,
+                        y: newY - PERSON_H / 2,
+                        w: PERSON_W,
+                        h: PERSON_H,
+                    };
+
+                    for (const building of buildings) {
+                        for (const box of building.collisionBoxes) {
+                            const side = getCollisionSide(playerRect, box);
+                            if (side !== "none") {
+                                // Push out based on collision side
+                                if (side === "left") newX = box.x - PERSON_W / 2;
+                                else if (side === "right") newX = box.x + box.w + PERSON_W / 2;
+                                else if (side === "top") newY = box.y - PERSON_H / 2;
+                                else if (side === "bottom") newY = box.y + box.h + PERSON_H / 2;
+                            }
+                        }
+                    }
+
+                    person.x = newX;
+                    person.y = newY;
                     updatedPeople[clientId] = person;
                 }
             }
@@ -464,6 +494,30 @@ export class LobbyClient {
         me.xTarget = me.xTarget + moveDirectionX * dt * PERSON_SPEED;
         me.yTarget = me.yTarget + moveDirectionY * dt * PERSON_SPEED;
 
+        // collisione con gli edifici (lato client)
+        const clientPlayerRect: Rectangle = {
+            x: me.xTarget - PERSON_W / 2,
+            y: me.yTarget - PERSON_H / 2,
+            w: PERSON_W,
+            h: PERSON_H,
+        };
+        for (const building of buildings) {
+            for (const box of building.collisionBoxes) {
+                const side = getCollisionSide(clientPlayerRect, box);
+                if (side !== "none") {
+                    if (side === "left") me.xTarget = box.x - PERSON_W / 2;
+                    else if (side === "right") me.xTarget = box.x + box.w + PERSON_W / 2;
+                    else if (side === "top") me.yTarget = box.y - PERSON_H / 2;
+                    else if (side === "bottom") me.yTarget = box.y + box.h + PERSON_H / 2;
+                }
+            }
+        }
+
+        // aggiorna stato edifici (door reveal) per il giocatore locale
+        for (const building of buildings) {
+            building.update(clientPlayerRect);
+        }
+
         // controllo che il giocatore non esca dallo spazio di gioco
         if (me.yTarget - PERSON_H/2 < worldBounds.top) me.yTarget = worldBounds.top + PERSON_H/2 + EPSILON;
         if (me.yTarget + PERSON_H/2 > worldBounds.bottom) me.yTarget = worldBounds.bottom - PERSON_H/2 - EPSILON;
@@ -492,6 +546,11 @@ export class LobbyClient {
         ctx.rect(worldBounds.left, worldBounds.top, worldW, worldH);
         ctx.fillStyle = "#58a515";
         ctx.fill();
+
+        // disegna gli edifici
+        for (const building of buildings) {
+            building.draw(ctx);
+        }
 
         // sposta le persone e disegnale
         Object.values(this.people).forEach((person) => {
