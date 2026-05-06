@@ -1,5 +1,5 @@
 import { PERSON_W, PERSON_H, Rectangle, Player, smoothChange, getCollisionSide } from '../common';
-import { Building } from './things';
+import { Arcade } from './things';
 import { IncomingMsg, OutgoingMsg } from '../server';
 import { Button } from '../client/ui-elements';
 import { GameServer } from '../games/game';
@@ -114,12 +114,8 @@ type LobbyClientMsg =
 
 const EPSILON = 0.0001;
 
-const worldW = 2000, worldH = 1200;
+const worldW = 10000, worldH = 7000;
 
-// Buildings in the lobby
-const buildings: Building[] = [
-    new Building({ x: 200, y: -100, w: 600, h: 450 }, 12),
-];
 const worldBounds = {
     top: -worldH/2,
     left: -worldW/2,
@@ -412,6 +408,10 @@ type ClientPerson = Person & {
     yTarget: number;
 };
 
+const buildings: Arcade[] = [
+    new Arcade({ x: 200, y: -100, w: 1200, h: 600 }, 50),
+];
+
 export class LobbyClient {
     public userInput: any;
 
@@ -494,7 +494,7 @@ export class LobbyClient {
         me.xTarget = me.xTarget + moveDirectionX * dt * PERSON_SPEED;
         me.yTarget = me.yTarget + moveDirectionY * dt * PERSON_SPEED;
 
-        // collisione con gli edifici (lato client)
+        // collisione con gli edifici
         const clientPlayerRect: Rectangle = {
             x: me.xTarget - PERSON_W / 2,
             y: me.yTarget - PERSON_H / 2,
@@ -511,10 +511,6 @@ export class LobbyClient {
                     else if (side === "bottom") me.yTarget = box.y + box.h + PERSON_H / 2;
                 }
             }
-        }
-
-        // aggiorna stato edifici (door reveal) per il giocatore locale
-        for (const building of buildings) {
             building.update(clientPlayerRect);
         }
 
