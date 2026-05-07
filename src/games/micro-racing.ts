@@ -28,6 +28,7 @@ import { getCharacterDrawFunction } from '../client/characters';
 const MONDO_W = 4800;
 const MONDO_H = 3800;
 const LARGHEZZA_PISTA = 160; // ampia per permettere sorpassi side-by-side
+const MARGINE_QUALI = 10; // px di tolleranza per evitare falsi track-limits in qualifica
 
 /**
  * Waypoint della linea centrale (senso orario).
@@ -114,18 +115,18 @@ const GRIGLIA_BASE = { dx: 35, dy: 90 };
 
 const ACCEL          = 290;    // px/s² accelerazione su asfalto
 const FRENO          = 560;    // px/s² frenata
-const ATTRITO        = 130;    // px/s² attrito passivo su asfalto
-const STERZO_RAD     = 3.05;   // rad/s velocità di sterzata
+const ATTRITO        = 120;    // px/s² attrito passivo su asfalto
+const STERZO_RAD     = 3.8;   // rad/s velocità di sterzata
 const VEL_MAX        = 315;    // px/s velocità massima su asfalto
 
 // ── Penalità fuori pista (punto 4) ────────────────────────────────────────────
 // L'auto non rimbalza ma viene fortemente penalizzata sull'erba.
-const ERBA_ACCEL_MULT  = 0.42;  // accelerazione ridotta al 42%
-const ERBA_VELMAX_MULT = 0.34;  // velocità massima ridotta al 34%
-const ERBA_ATTRITO_ADD = 420;   // attrito aggiuntivo sull'erba (si somma a ATTRITO)
-//   → attrito totale su erba = 130 + 420 = 550 px/s² — si ferma velocemente
+const ERBA_ACCEL_MULT  = 0.5;   // accelerazione ridotta al 50%
+const ERBA_VELMAX_MULT = 0.4;   // velocità massima ridotta al 40%
+const ERBA_ATTRITO_ADD = 0;     // attrito aggiuntivo sull'erba (si somma a ATTRITO)
+//   → attrito totale su erba = 130 px/s² — resta lento ma può rientrare da fermo
 
-const DRIFT          = 0.80;   // ritenzione velocità laterale (effetto derapata)
+const DRIFT          = 0.86;   // ritenzione velocità laterale (effetto derapata)
 
 // ── Turbo ─────────────────────────────────────────────────────────────────────
 const TURBO_BONUS    = 1.80;
@@ -189,6 +190,7 @@ interface MsgInput {
     kind: 'input';
     su: boolean; giu: boolean; sx: boolean; dx: boolean;
     turbo: boolean; olio: boolean;
+    mouseAngolo: number;
 }
 
 interface MsgStato {
@@ -230,6 +232,16 @@ function sullaStrada(cx: number, cy: number): boolean {
     return false;
 }
 
+function sullaStradaConMargine(cx: number, cy: number, extra: number): boolean {
+    const limite = LARGHEZZA_PISTA / 2 + extra;
+    for (let i = 0; i < WAYPOINTS.length; i++) {
+        const a = WAYPOINTS[i];
+        const b = WAYPOINTS[(i + 1) % WAYPOINTS.length];
+        if (distSegmento(cx, cy, a.x, a.y, b.x, b.y) < limite) return true;
+    }
+    return false;
+}
+
 /** Ordina gli id per miglior tempo di qualifica (senza tempo → in fondo) */
 function calcolaGriglia(auto: Record<string, StatoAuto>): string[] {
     return Object.keys(auto).sort((a, b) => {
@@ -258,6 +270,12 @@ function formatTempo(ms: number): string {
     return `${min}:${String(sec).padStart(2, '0')},${String(mill).padStart(3, '0')}`;
 }
 
+function normalizzaAngolo(rad: number): number {
+    while (rad > Math.PI) rad -= Math.PI * 2;
+    while (rad < -Math.PI) rad += Math.PI * 2;
+    return rad;
+}
+
 /**
  * Aggiorna la fisica dell'auto per dt secondi.
  * Usata sia dal server (tutti) sia internamente per eventuali predizioni lato client.
@@ -267,7 +285,7 @@ function formatTempo(ms: number): string {
  */
 function aggiornaFisica(
     auto: StatoAuto,
-    input: { su: boolean; giu: boolean; sx: boolean; dx: boolean },
+    input: { su: boolean; giu: boolean; sx: boolean; dx: boolean; mouseAngolo: number },
     dt: number,
     bonusScia: number,
     fuoriPista: boolean,
@@ -295,8 +313,14 @@ function aggiornaFisica(
         return;
     }
 
-    if (input.sx) auto.a -= STERZO_RAD * dt;
-    if (input.dx) auto.a += STERZO_RAD * dt;
+    if (Number.isFinite(input.mouseAngolo)) {
+        const diff = normalizzaAngolo(input.mouseAngolo - auto.a);
+        const maxTurn = STERZO_RAD * dt * 1.7;
+        auto.a += Math.sign(diff) * Math.min(Math.abs(diff), maxTurn);
+    } else {
+        if (input.sx) auto.a -= STERZO_RAD * dt;
+        if (input.dx) auto.a += STERZO_RAD * dt;
+    }
 
     const fw = { x: Math.cos(auto.a), y: Math.sin(auto.a) };
 
@@ -413,8 +437,8 @@ export class MicroRacingServer extends GameServer {
                 if (p.turbo && auto.turboTimer <= 0 && auto.turboCooldown <= 0)
                     auto.turboTimer = TURBO_DURATA;
 
-                // Olio: lascia la chiazza dietro l'auto
-                if (p.olio && auto.olioCooldown <= 0) {
+                // Olio: lascia la chiazza dietro l'auto solo in gara
+                if (this.fase === 'gara' && p.olio && auto.olioCooldown <= 0) {
                     auto.olioCooldown = OLIO_RICARICA;
                     this.olio.push({
                         x: auto.x - Math.cos(auto.a) * 25,
@@ -424,7 +448,7 @@ export class MicroRacingServer extends GameServer {
                 }
 
                 // Fuori pista prima del movimento
-                const fuoriPrima = !sullaStrada(auto.x, auto.y);
+                const fuoriPrima = !sullaStradaConMargine(auto.x, auto.y, MARGINE_QUALI);
                 if (this.fase === 'qualifiche' && fuoriPrima) auto.giroInvalido = true;
 
                 // Scia (solo in gara)
@@ -434,7 +458,7 @@ export class MicroRacingServer extends GameServer {
                 aggiornaFisica(auto, p, dt, bonusScia, fuoriPrima);
 
                 // Fuori pista dopo il movimento (nel caso sia uscito durante il tick)
-                if (this.fase === 'qualifiche' && !sullaStrada(auto.x, auto.y))
+                if (this.fase === 'qualifiche' && !sullaStradaConMargine(auto.x, auto.y, MARGINE_QUALI))
                     auto.giroInvalido = true;
             }
         } else if (this.fase === 'gara') {
@@ -610,14 +634,18 @@ export class MicroRacingServer extends GameServer {
             const nelRaggio = Math.hypot(a.x - TRAGUARDO.x, a.y - TRAGUARDO.y) < TRAGUARDO.r;
             const tuttiCP   = (1 << CHECKPOINTS.length) - 1;
 
-            if (nelRaggio && !a.sulTraguardo && (a.cp & tuttiCP) === tuttiCP) {
-                a.giri++;
-                a.cp = 0;
-                if (a.giri >= GIRI_GARA) {
-                    a.finito    = true;
-                    a.posizione = ++finiti;
-                    // Primo classificato: avvia il conto alla rovescia DNF
-                    if (finiti === 1) this.dnfTimer = DNF_TIMEOUT;
+            if (nelRaggio && !a.sulTraguardo) {
+                if ((a.cp & tuttiCP) === tuttiCP) {
+                    a.giri++;
+                    a.cp = 0;
+                    if (a.giri >= GIRI_GARA) {
+                        a.finito    = true;
+                        a.posizione = ++finiti;
+                        // Primo classificato: avvia il conto alla rovescia DNF
+                        if (finiti === 1) this.dnfTimer = DNF_TIMEOUT;
+                    }
+                } else {
+                    a.cp = 0;
                 }
             }
 
@@ -639,10 +667,11 @@ export class MicroRacingServer extends GameServer {
                     if (!a.finito) {
                         a.finito    = true;
                         a.dnf       = true;
-                        a.posizione = 0;
+                        a.posizione = ++finiti;
                     }
                 }
                 this.garaFinita = true;
+                this.dnfTimer = -1;
             }
         }
     }
@@ -717,6 +746,8 @@ export class MicroRacingClient extends GameClient {
 
     private trackCanvas: HTMLCanvasElement | null = null;
     private tasti = { su: false, giu: false, sx: false, dx: false, turbo: false, olio: false };
+    private turboPremuto = false;
+    private olioPremuto = false;
     private animTime       = 0;
     private garaFinitaTimer = -1;
 
@@ -772,7 +803,16 @@ export class MicroRacingClient extends GameClient {
             if (!msg.auto[id]) { delete this.statoServer[id]; delete this.renderAuto[id]; }
     }
 
-    flushMessages(): MsgInput[] { return [{ kind: 'input', ...this.tasti }]; }
+    flushMessages(): MsgInput[] {
+        const input: MsgInput = {
+            kind: 'input',
+            ...this.tasti,
+            mouseAngolo: this.calcolaAngoloMouse(),
+        };
+        this.tasti.turbo = false;
+        this.tasti.olio = false;
+        return [input];
+    }
 
     isFinished(): boolean { return this.garaFinitaTimer === 0; }
 
@@ -863,6 +903,19 @@ export class MicroRacingClient extends GameClient {
 
             this.renderAuto[id] = c;
         }
+    }
+
+    private calcolaAngoloMouse(): number {
+        const me = this.statoServer?.[this.myId];
+        if (!me || this.userInput.screenW <= 0 || this.userInput.screenH <= 0) return Number.NaN;
+
+        const mouseWorldX = this.camX + (this.userInput.mouseX - this.userInput.screenW / 2) / this.ZOOM;
+        const mouseWorldY = this.camY + (this.userInput.mouseY - this.userInput.screenH / 2) / this.ZOOM;
+        const dx = mouseWorldX - me.x;
+        const dy = mouseWorldY - me.y;
+
+        if (Math.hypot(dx, dy) < 12) return me.a;
+        return Math.atan2(dy, dx);
     }
 
     // ── Disegno auto ──────────────────────────────────────────────────────────
@@ -1011,6 +1064,53 @@ export class MicroRacingClient extends GameClient {
         ctx.fillRect(W - 118, H - 44, 110, 36);
         ctx.font = 'bold 22px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = '#fff';
         ctx.fillText(`${vel} m/s`, W - 10, H - 14);
+
+        this.disegnaMiniMappa(ctx, me, W, H);
+    }
+
+    private disegnaMiniMappa(ctx: CanvasRenderingContext2D, me: StatoAuto, W: number, H: number): void {
+        const size = 150;
+        const pad = 12;
+        const x = W - size - pad;
+        const y = H - size - pad - 52;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(x - 3, y - 3, size + 6, size + 6);
+        ctx.fillStyle = 'rgba(20,20,20,0.85)';
+        ctx.fillRect(x, y, size, size);
+
+        // Tracciato
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (let i = 0; i <= WAYPOINTS.length; i++) {
+            const p = WAYPOINTS[i % WAYPOINTS.length];
+            const mx = x + (p.x / MONDO_W) * size;
+            const my = y + (p.y / MONDO_H) * size;
+            if (i === 0) ctx.moveTo(mx, my); else ctx.lineTo(mx, my);
+        }
+        ctx.stroke();
+
+        // Auto giocatore
+        const px = x + (me.x / MONDO_W) * size;
+        const py = y + (me.y / MONDO_H) * size;
+        ctx.translate(px, py);
+        ctx.rotate(me.a);
+        ctx.fillStyle = '#f1c40f';
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(7, 0);
+        ctx.lineTo(-5, -4);
+        ctx.lineTo(-3, 0);
+        ctx.lineTo(-5, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
     }
 
     /** Riga etichetta + valore allineati a sinistra/destra nel pannello HUD */
@@ -1344,10 +1444,23 @@ export class MicroRacingClient extends GameClient {
         const set = (e: KeyboardEvent, v: boolean) => {
             if (e.code === 'KeyW' || e.code === 'ArrowUp')         this.tasti.su    = v;
             if (e.code === 'KeyS' || e.code === 'ArrowDown')       this.tasti.giu   = v;
-            if (e.code === 'KeyA' || e.code === 'ArrowLeft')       this.tasti.sx    = v;
-            if (e.code === 'KeyD' || e.code === 'ArrowRight')      this.tasti.dx    = v;
-            if (e.code === 'Space')                                { this.tasti.turbo = v; if (v) e.preventDefault(); }
-            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.tasti.olio  = v;
+            if (e.code === 'Space') {
+                if (v) {
+                    if (!this.turboPremuto) this.tasti.turbo = true;
+                    this.turboPremuto = true;
+                    e.preventDefault();
+                } else {
+                    this.turboPremuto = false;
+                }
+            }
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                if (v) {
+                    if (!this.olioPremuto) this.tasti.olio = true;
+                    this.olioPremuto = true;
+                } else {
+                    this.olioPremuto = false;
+                }
+            }
         };
         document.addEventListener('keydown', e => set(e, true));
         document.addEventListener('keyup',   e => set(e, false));
