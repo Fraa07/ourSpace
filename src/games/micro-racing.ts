@@ -1289,7 +1289,7 @@ export class MicroRacingClient extends GameClient {
         ctx.fillStyle = 'rgba(255,255,255,0.12)';
         ctx.fillRect(W / 2 - 190, 168, 380, 1);
 
-        const gridRev     = [...this.gridOrder].reverse();
+        const gridRev     = [...this.gridOrder].reverse();//aura
         const tempoLeader = this.gridOrder.length > 0
             ? (this.statoServer[this.gridOrder[0]]?.migliorGiro ?? -1)
             : -1;
@@ -1306,7 +1306,7 @@ export class MicroRacingClient extends GameClient {
             const sonoIo  = id === this.myId;
             const ry      = startY + idx * rigaH;
 
-            // Sfondo riga
+            // Sfondo rigaaaaaaaass
             ctx.fillStyle = isPole
                 ? 'rgba(200,155,30,0.35)'
                 : sonoIo
@@ -1352,7 +1352,7 @@ export class MicroRacingClient extends GameClient {
         ctx.fillText('Le macchine vengono riposizionate automaticamente', W / 2, startY + rigaH * gridRev.length + 20);
     }
 
-    // ── Schermata fine gara ───────────────────────────────────────────────────
+    // ── Schermata fine garaa ───────────────────────────────────────────────────
 
     private disegnaFinale(ctx: CanvasRenderingContext2D, me: StatoAuto | undefined, W: number, H: number): void {
         ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, 0, W, H);
