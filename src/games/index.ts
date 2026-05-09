@@ -2,7 +2,7 @@ import { GameServer, GameClient } from "./game";
 import { UserInput } from "../client/user-input";
 import { GuessGameClient, GuessGameServer } from "./guess";
 import { PongClient, PongServer } from "./multi-pong";
-import { BastoniamociMenuClient, BastoniamociMenuServer } from "./Bastoniamoci/menu";
+import { PongClient1, PongServer1 } from "./Jump/game";
 
 export type GameInfo = {
     client: new (userInput: UserInput, myId: string) => GameClient;
@@ -22,8 +22,8 @@ export const GAMES: Record<string, GameInfo> = {
         name: 'Pong'
     },
     bastoniamoci: {
-        client: BastoniamociMenuClient,
-        server: BastoniamociMenuServer,
+        client: PongClient1,
+        server: PongServer1,
         name: 'Bastoniamoci - Stickfight Arena'
     }
 }
