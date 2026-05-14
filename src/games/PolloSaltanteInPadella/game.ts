@@ -75,7 +75,7 @@ function applyJumpPhysics(player: JumpPlayer, moveDirectionX: number, jumpPresse
     }
 }
 
-export class PongServer1 extends GameServer {
+export class PolloSaltanteInPadellaServer extends GameServer {
 
     private players: Record<string, JumpPlayer>;
     private leftScore: number;
@@ -148,7 +148,7 @@ export class PongServer1 extends GameServer {
 
 import { UserInput } from '../../client/user-input';
 
-export class PongClient1 extends GameClient {
+export class PolloSaltanteInPadellaClient extends GameClient {
     private players = null;
     private leftScore = 0;
     private rightScore = 0;
