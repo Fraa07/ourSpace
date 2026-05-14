@@ -45,7 +45,6 @@ function applyJumpPhysics(player: JumpPlayer, moveDirectionX: number, jumpPresse
     ensureJumpPlayer(player);
 
     player.moveDirectionX = moveDirectionX;
-    player.vx = moveDirectionX * MOVE_SPEED;
 
     if (jumpPressed && player.onGround) {
         player.vy = -JUMP_VELOCITY;
@@ -57,7 +56,6 @@ function applyJumpPhysics(player: JumpPlayer, moveDirectionX: number, jumpPresse
         player.vy = MAX_FALL_SPEED;
     }
 
-    player.x += player.vx * dt;
     player.y += player.vy * dt;
 
     if (player.x < BORDERS.left) player.x = BORDERS.left;
