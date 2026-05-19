@@ -6,6 +6,7 @@ export class UserInput {
     public screenH: number = 0;
     public moveDirectionX: number = 0;
     public moveDirectionY: number = 0;
+    public flyEnabled: boolean = false;
     public mouseX: number = 0;
     public mouseY: number = 0;
     public zoom: number = 1;
@@ -30,6 +31,11 @@ export class UserInput {
         // TODO movement on mobile with virtual joystick
         document.addEventListener("keydown", (event) => {
             if (event.repeat) return;
+
+            if (event.key === "è" || event.key === "È") {
+                this.flyEnabled = !this.flyEnabled;
+                return;
+            }
 
             if (event.code == "KeyW") this.up = true;
             else if (event.code == "KeyA") this.left = true;
