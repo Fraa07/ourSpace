@@ -47,7 +47,7 @@ const section1: MapSection = {
   height: ROOM.height,
   colors: { top: "#263041", bottom: "#615b51" },
   platforms: [
-    { id: "s1-catch", x: 11.7, y: S1_Y + 7.85, w: 3.8, h: 0.28, kind: "oneWay" },
+    { id: "s1-catch", x: 11.7, y: S1_Y + 7.85, w: 3, h: 0.28, kind: "oneWay" },
     { id: "s1-left", x: 7.8, y: S1_Y + 6.55, w: 2.1, h: 0.28, kind: "solid" },
     { id: "s1-slope", x: 4.8, y: S1_Y + 5.75, w: 1.9, h: 0.75, kind: "slope", slope: "upLeft" },
     { id: "s1-nub", x: 1.2, y: S1_Y + 4.25, w: 1.6, h: 0.3, kind: "solid" },
@@ -96,8 +96,6 @@ const section3: MapSection = {
   colors: { top: "#222a3a", bottom: "#554b47" },
   platforms: [
     { id: "s3-catch", x: 6.9, y: S3_Y + 8.45, w: 2.4, h: 0.28, kind: "oneWay" },
-    { id: "s3-wall-left", x: 0, y: S3_Y + 5.6, w: 1.1, h: 3.4, kind: "solid" },
-    { id: "s3-wall-right", x: 14.9, y: S3_Y + 4.3, w: 1.1, h: 4.7, kind: "solid" },
     { id: "s3-a", x: 11.2, y: S3_Y + 6.15, w: 1.65, h: 0.28, kind: "oneWay" },
     { id: "s3-b", x: 6.65, y: S3_Y + 4.75, w: 1.55, h: 0.28, kind: "solid" },
     { id: "s3-c", x: 2.9, y: S3_Y + 3.35, w: 1.5, h: 0.28, kind: "oneWay" },
@@ -172,7 +170,7 @@ const section7: MapSection = {
     { id: "s7-entry", x: 3.4, y: S7_Y + 9.1, w: 2.4, h: 0.26, kind: "oneWay" },
     { id: "s7-left", x: 9.6, y: S7_Y + 7.05, w: 2.2, h: 0.26, kind: "solid" },
     { id: "s7-right", x: 5.2, y: S7_Y + 4.85, w: 2.0, h: 0.26, kind: "solid" },
-    { id: "s7-mid", x: 10.6, y: S7_Y + 4.35, w: 0.2, h: 0.26, kind: "oneWay" },
+    { id: "s7-mid", x: 10.6, y: S7_Y + 4.35, w: 0.06, h: 0.36, kind: "solid" },
     { id: "s7-crown", x: 3.4, y: S7_Y + 2.25, w: 3.0, h: 0.28, kind: "solid" },
   ],
 };
