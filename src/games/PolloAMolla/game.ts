@@ -1,20 +1,10 @@
-// ============================================================
-// game.ts — PolloAMolla
-// Orchestrazione Server/Client per mappa verticale continua.
-//
-// Cambiamenti rispetto all'originale:
-//   - Nessun roomIndex nel player
-//   - Spawn dalla mappa continua (SPAWN)
-//   - Il client traccia il previousPlayerY per generare particelle al landing
-//   - drawGame riceve dt per aggiornare camera e particelle
-// ============================================================
 
 import { IncomingMsg, OutgoingMsg } from "../../server";
 import { Player } from "../../common";
 import { UserInput } from "../../client/user-input";
 import { GameClient, GameServer } from "./../game";
 import { PHYSICS, PLAYER, SPRITE_SHEET } from "./constants";
-import { drawGame, spawnLandParticles } from "./renderer";
+import { drawGame } from "./renderer";
 import { createPlayer } from "./player";
 import { FLAG, SPAWN } from "./map";
 import { updatePlayer } from "./physics";
@@ -175,10 +165,7 @@ export class PolloAMollaClient extends GameClient {
       const prev = this.prevPlayerState[id];
       if (prev) {
         const justLanded = !prev.onGround && player.onGround;
-        if (justLanded && Math.abs(prev.vy) > 1.5) {
-          const intensity = Math.min(1, Math.abs(prev.vy) / 15);
-          spawnLandParticles(player.x, player.y, intensity);
-        }
+        // particle spawn removed on land
       }
       this.prevPlayerState[id] = {
         y: player.y,

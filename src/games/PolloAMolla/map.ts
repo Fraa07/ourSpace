@@ -1,23 +1,9 @@
-// ============================================================
-// map.ts — PolloAMolla
-// Sostituisce rooms.ts. Unica mappa verticale continua.
-//
-// Convenzione coordinate:
-//   - X: 0 (sinistra) → ROOM.width (destra)
-//   - Y: 0 (cima del mondo) → MAP_HEIGHT (base del mondo)
-//   - Il giocatore parte vicino al fondo (MAP_HEIGHT) e deve salire verso Y=0.
-//
-// Le sezioni sono solo zone tematiche (colori, nome) senza logica di transizione.
-// Tutte le piattaforme hanno coordinate Y assolute nel mondo.
-// ============================================================
 
 import { MAP_HEIGHT, PLAYER, ROOM } from "./constants";
 import { MapSection, Platform, PositionedPlatform } from "./types";
 
-// ────────────────────────────────────────────────────────────
-// SEZIONE 0 — Kitchen Floor (base, y: MAP_HEIGHT-9 .. MAP_HEIGHT)
-// ────────────────────────────────────────────────────────────
-const BASE_Y = MAP_HEIGHT - ROOM.height; // top della sezione più bassa = 36
+
+const BASE_Y = MAP_HEIGHT - ROOM.height;
 const SECTION0_LIFT = 4.25;
 
 const section0: MapSection = {
@@ -35,10 +21,8 @@ const section0: MapSection = {
   ],
 };
 
-// ────────────────────────────────────────────────────────────
-// SEZIONE 1 — Shelf Gap (y: BASE_Y-9 .. BASE_Y)
-// ────────────────────────────────────────────────────────────
-const S1_Y = BASE_Y - ROOM.height; // 27
+
+const S1_Y = BASE_Y - ROOM.height; 
 
 const section1: MapSection = {
   id: 1,
@@ -55,9 +39,6 @@ const section1: MapSection = {
   ],
 };
 
-// ────────────────────────────────────────────────────────────
-// SEZIONE 2 — Moving Counter (y: S1_Y-9 .. S1_Y)
-// ────────────────────────────────────────────────────────────
 const S2_Y = S1_Y - ROOM.height; // 18
 
 const section2: MapSection = {
@@ -83,9 +64,7 @@ const section2: MapSection = {
   ],
 };
 
-// ────────────────────────────────────────────────────────────
-// SEZIONE 3 — Narrow Pantry (y: S2_Y-9 .. S2_Y)
-// ────────────────────────────────────────────────────────────
+
 const S3_Y = S2_Y - ROOM.height; // 9
 
 const section3: MapSection = {
@@ -103,9 +82,7 @@ const section3: MapSection = {
   ],
 };
 
-// ────────────────────────────────────────────────────────────
-// SEZIONE 4 — Crown Ledge (top, y: 0 .. S3_Y)
-// ────────────────────────────────────────────────────────────
+
 
 const S4_Y = S3_Y - ROOM.height; // 0
 
@@ -185,9 +162,7 @@ export const FLAG = {
   w: FLAG_W,
   h: FLAG_H,
 };
-// ────────────────────────────────────────────────────────────
-// Raccolta di tutte le sezioni e piattaforme
-// ────────────────────────────────────────────────────────────
+
 export const MAP_SECTIONS: MapSection[] = [
   section7,
   section6,

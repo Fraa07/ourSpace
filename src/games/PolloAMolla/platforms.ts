@@ -1,8 +1,4 @@
-// ============================================================
-// platforms.ts — PolloAMolla
-// Utility per collision detection sulle piattaforme.
-// Invariato rispetto all'originale (logica corretta).
-// ============================================================
+
 
 import { PLAYER } from "./constants";
 import { PositionedPlatform } from "./types";

@@ -1,9 +1,3 @@
-// ============================================================
-// types.ts — PolloAMolla
-// BREAKING CHANGE: roomIndex rimosso dal player.
-// Il giocatore ora ha una Y assoluta nel mondo continuo (worldY).
-// X rimane relativa alla larghezza del mondo (0..ROOM.width).
-// ============================================================
 
 export type PlatformKind = "solid" | "oneWay" | "slope";
 export type SlopeDirection = "upRight" | "upLeft";
@@ -77,13 +71,3 @@ export type JumpPlayer = {
   screenShakeIntensity: number;
 };
 
-export type Particle = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-  size: number;
-  color: string;
-};

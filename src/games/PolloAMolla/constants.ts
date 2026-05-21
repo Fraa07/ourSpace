@@ -1,10 +1,3 @@
-// ============================================================
-// constants.ts — PolloAMolla (Jump-King style)
-// Mappa verticale continua: ROOM ora è la finestra logica visibile.
-// La mappa si estende per MAP_HEIGHT unità in Y (y=0 = cima, y positivo = giù).
-// ============================================================
-
-/** Finestra logica visibile in unità mondo. */
 export const ROOM = {
   width: 16,
   height: 9,
@@ -67,31 +60,9 @@ export const COLORS = {
   shadow: "rgba(0, 0, 0, 0.34)",
   charge: "#f3d45f",
   chargeBack: "rgba(0,0,0,0.55)",
-  particle: "#f3d45f",
 };
 
-// ============================================================
-// SPRITE SHEET — PolloSaltante.png
-//
-// Analisi del problema originale:
-//   - idle:     x:0,   y:0,   w:195, h:195   ✓ corretto
-//   - charge:   x:192, y:0,   w:195, h:195   ✗ sovrappone idle di 3px → x deve essere 195
-//   - airborne: x:384, y:0,   w:195, h:195   ✓ (era già giusto con 2 frame prima)
-//   - land:     x:960, y:195, w:195, h:195   ✗ se la sheet è 4 frame per riga da 195px
-//                                                la 4ª colonna è a x=585; la riga 1 è y=195
-//                                                → x corretto: 3*195 = 585, y: 195?
-//                                                  oppure è nella riga 0 col 4: x=585, y=0
-//
-// Ricostruzione più probabile (4 frame su riga unica, 780×195):
-//   idle=col0, charge=col1, airborne=col2, land=col3 → tutti y:0
-//   Ma il file originale mette land su y:195 → la sheet ha 2 righe.
-//   Layout assunto: riga 0 = [idle, charge, airborne], riga 1 = [land, ...]
-//   Con frame 195×195 e 3 colonne, riga 1 inizia a y=195.
-//   Il frame land è a colonna 0 della riga 1 → x=0, y=195
-//   (il valore x:960 nel file originale era chiaramente sbagliato: 960/195 ≈ 4.9)
-//
-// CORREZIONE APPLICATA: land → x:0, y:195
-// ============================================================
+
 export const SPRITE_SHEET = {
   url: "/assets/PolloAMolla/PolloSaltante.png",
   frameSize: 195,

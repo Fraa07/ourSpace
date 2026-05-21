@@ -1,14 +1,4 @@
-// ============================================================
-// renderer.ts — PolloAMolla
-// Renderer per mappa verticale continua con:
-//   - Camera cinematica che segue il player (smooth lerp)
-//   - Screen shake su landing pesante
-//   - Particelle di polvere al landing
-//   - Charge meter con feedback visivo animato
-//   - Sprite correttamente croppati
-//   - Sfondo progressivo basato sull'immagine verticale degli assets
-//   - HUD con altezza relativa (progress bar verticale)
-// ============================================================
+
 
 import {
   COLORS,
@@ -26,56 +16,9 @@ import {
   getPositionedPlatforms,
   FLAG,
 } from "./map";
-import { JumpPlayer, Particle, Platform, PositionedPlatform } from "./types";
+import { JumpPlayer, Platform, PositionedPlatform } from "./types";
 
-const particles: Particle[] = [];
-
-export function spawnLandParticles(x: number, y: number, intensity: number) {
-  const count = Math.floor(4 + intensity * 20);
-  for (let i = 0; i < count; i++) {
-    const angle = Math.PI + (Math.random() - 0.5) * Math.PI * 0.8;
-    const speed = 0.5 + Math.random() * intensity * 3;
-    particles.push({
-      x: x + PLAYER.width * 0.5,
-      y: y + PLAYER.height,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 0.3,
-      life: 1,
-      maxLife: 0.3 + Math.random() * 0.3,
-      size: 0.04 + Math.random() * 0.04,
-      color: COLORS.particle,
-    });
-  }
-}
-
-export function spawnChargeParticles(x: number, y: number, ratio: number) {
-  if (Math.random() > ratio * 0.3) return;
-  particles.push({
-    x: x + PLAYER.width * 0.5 + (Math.random() - 0.5) * 0.4,
-    y: y + PLAYER.height * 0.8,
-    vx: (Math.random() - 0.5) * 0.8,
-    vy: -0.5 - Math.random() * ratio,
-    life: 1,
-    maxLife: 0.2 + Math.random() * 0.2,
-    size: 0.03 + ratio * 0.04,
-    color: COLORS.charge,
-  });
-}
-
-function updateParticles(dt: number) {
-  const gravity = 4;
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.life -= dt / p.maxLife;
-    if (p.life <= 0) {
-      particles.splice(i, 1);
-      continue;
-    }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy += gravity * dt;
-  }
-}
+// particles removed
 
 type View = {
   scale: number;
@@ -357,19 +300,7 @@ function drawPlayerName(
   ctx.restore();
 }
 
-function drawParticles(
-  ctx: CanvasRenderingContext2D,
-  view: View,
-  screenH: number,
-) {
-  for (const p of particles) {
-    const alpha = p.life;
-    const sx = worldToScreenX(p.x, view);
-    const sy = worldToScreenY(p.y + 0.5, view, screenH);
-    const sr = p.size * view.scale;
-  }
-  ctx.globalAlpha = 1;
-}
+// particles drawing removed
 
 function drawHud(
   ctx: CanvasRenderingContext2D,
@@ -460,11 +391,7 @@ export function drawGame(
   const me = players[myId];
   if (!me) return;
 
-  updateParticles(dt);
-
-  if (me.isCharging) {
-    spawnChargeParticles(me.x, me.y, chargeRatio(me));
-  }
+  // particles removed
 
   const view = computeView(screenW, screenH, me.y, dt);
 
@@ -506,7 +433,7 @@ export function drawGame(
     }
   }
 
-  drawParticles(ctx, view, screenH);
+  // particles removed
 
   if (me.screenShakeSeconds > 0) {
     ctx.restore();

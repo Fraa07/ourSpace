@@ -1,15 +1,3 @@
-// ============================================================
-// physics.ts — PolloAMolla
-// Motore fisico per mappa verticale continua stile Jump King.
-//
-// Principi Jump King applicati:
-//   1. Nessun controllo direzionale in aria (vettore fisso al lancio)
-//   2. Gravità pesante, caduta veloce
-//   3. Caduta punitiva: se cadi oltre una certa distanza torni allo spawn
-//   4. Salto a carica con feedback visivo
-//   5. Collisioni solide e consistenti (no jitter, no ghost collision)
-//   6. Moving platform: il player viene trascinato
-// ============================================================
 
 import { MAP_HEIGHT, PHYSICS, PLAYER, ROOM } from "./constants";
 import { getPlatformsInRange, getPositionedPlatforms, SPAWN } from "./map";

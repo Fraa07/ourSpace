@@ -1,8 +1,4 @@
-// ============================================================
-// player.ts — PolloAMolla
-// Creazione e reset del giocatore nella mappa continua.
-// Nessun roomIndex: usa coordinate Y assolute.
-// ============================================================
+
 
 import { PLAYER } from "./constants";
 import { SPAWN } from "./map";
