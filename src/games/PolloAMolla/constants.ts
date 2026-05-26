@@ -1,46 +1,31 @@
-
-
 export const ROOM = {
   width: 16,
   height: 9,
 };
 
-
-export const MAP_HEIGHT = ROOM.height * 8; 
-
-
-
+export const MAP_HEIGHT = ROOM.height * 8;
 
 export const PLAYER = {
   width: 0.62,
   height: 0.82,
 
-  
   groundMoveSpeed: 2.15,
 
-  
   airDrag: 0.0,
 
-  
   gravity: 30,
   terminalVelocity: 18,
 
-  
   maxChargeSeconds: 0.85,
   maxJumpVelocity: 13.5,
   maxHorizontalVelocity: 5.8,
 
-  
   coyoteSeconds: 0.07,
   jumpBufferSeconds: 0.1,
   wallSkin: 0.001,
 
-  
   ceilBounceVy: 0.5,
 };
-
-
-
 
 export const PHYSICS = {
   maxStepSeconds: 1 / 20,
@@ -48,7 +33,6 @@ export const PHYSICS = {
   topLandingTolerance: 0.1,
   groundedSnapDistance: 0.35,
 };
-
 
 export const COLORS = {
   void: "#05070c",

@@ -1,7 +1,5 @@
 
 
-
-
 import {
   COLORS,
   MAP_HEIGHT,
@@ -20,14 +18,11 @@ import {
 } from "./map";
 import { JumpPlayer, Platform, PositionedPlatform } from "./types";
 
-
-
 type View = {
   scale: number;
   offsetX: number;
   cameraY: number;
 };
-
 
 function worldToScreenY(worldY: number, view: View, screenH: number): number {
   return (worldY - view.cameraY) * view.scale + screenH * 0.5;
@@ -37,28 +32,17 @@ function worldToScreenX(worldX: number, view: View): number {
   return view.offsetX + worldX * view.scale;
 }
 
-let smoothCameraY = -1;
-const CAMERA_LERP = 8;
-
-
-
 function computeView(
   screenW: number,
   screenH: number,
   playerY: number,
-  dt: number,
 ): View {
   const scale = Math.min(screenW / ROOM.width, screenH / ROOM.height);
   const offsetX = (screenW - ROOM.width * scale) * 0.5;
   const targetCameraY = playerY + PLAYER.height * 0.5 - (screenH / scale) * 0.4;
 
-  if (smoothCameraY < 0) smoothCameraY = targetCameraY;
-  const alpha = 1 - Math.exp(-CAMERA_LERP * dt);
-  smoothCameraY += (targetCameraY - smoothCameraY) * alpha;
-
   return { scale, offsetX, cameraY: targetCameraY };
 }
-
 
 function drawBackground(
   ctx: CanvasRenderingContext2D,
@@ -157,7 +141,6 @@ function drawSlope(
   ctx.stroke();
 }
 
-
 function drawPlatform(
   ctx: CanvasRenderingContext2D,
   view: View,
@@ -212,8 +195,6 @@ function spriteFrame(player: JumpPlayer) {
   if (player.landedSeconds > 0) return SPRITE_SHEET.frames.land;
   return SPRITE_SHEET.frames.idle;
 }
-
-
 
 function drawPlayer(
   ctx: CanvasRenderingContext2D,
@@ -309,9 +290,6 @@ function drawPlayerName(
   ctx.restore();
 }
 
-
-
-
 function drawHud(
   ctx: CanvasRenderingContext2D,
   screenW: number,
@@ -382,8 +360,6 @@ function drawVictoryOverlay(
   }
 }
 
-
-
 export function drawGame(
   ctx: CanvasRenderingContext2D,
   screenW: number,
@@ -403,9 +379,7 @@ export function drawGame(
   const me = players[myId];
   if (!me) return;
 
-  
-
-  const view = computeView(screenW, screenH, me.y, dt);
+  const view = computeView(screenW, screenH, me.y);
 
   let shakeOffsetX = 0;
   let shakeOffsetY = 0;
@@ -444,8 +418,6 @@ export function drawGame(
       drawPlayerName(ctx, view, player, screenH, lobbyPlayer.name);
     }
   }
-
-  
 
   if (me.screenShakeSeconds > 0) {
     ctx.restore();
