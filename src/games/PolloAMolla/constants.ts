@@ -1,41 +1,47 @@
+
+
 export const ROOM = {
   width: 16,
   height: 9,
 };
 
-/** Altezza totale della mappa in unità mondo. */
-export const MAP_HEIGHT = ROOM.height * 8; // 8 "stanze" impilate verticalmente = 72 unità
 
-/** Parametri fisici e di controllo del giocatore. */
+export const MAP_HEIGHT = ROOM.height * 8; 
+
+
+
+
 export const PLAYER = {
   width: 0.62,
   height: 0.82,
 
-  // Movimento a terra: il giocatore non si muove liberamente in aria (stile Jump King)
+  
   groundMoveSpeed: 2.15,
 
-  // Fisica aria: nessun controllo direzionale dopo il lancio (autentico Jump King)
+  
   airDrag: 0.0,
 
-  // Gravità più pesante per un feel "di piombo"
+  
   gravity: 30,
   terminalVelocity: 18,
 
-  // Salto a carica
+  
   maxChargeSeconds: 0.85,
   maxJumpVelocity: 13.5,
   maxHorizontalVelocity: 5.8,
 
-  // Tolleranze
+  
   coyoteSeconds: 0.07,
   jumpBufferSeconds: 0.1,
   wallSkin: 0.001,
 
-  // Effetto "bump" quando si tocca il soffitto (rimbalzo leggermente laterale)
+  
   ceilBounceVy: 0.5,
 };
 
-/** Parametri fisici del motore. */
+
+
+
 export const PHYSICS = {
   maxStepSeconds: 1 / 20,
   inputDeadZone: 0.2,
@@ -43,7 +49,7 @@ export const PHYSICS = {
   groundedSnapDistance: 0.35,
 };
 
-/** Palette colori. */
+
 export const COLORS = {
   void: "#05070c",
   skyTop: "#24324a",

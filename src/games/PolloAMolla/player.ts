@@ -4,6 +4,7 @@ import { PLAYER } from "./constants";
 import { SPAWN } from "./map";
 import { JumpPlayer } from "./types";
 
+
 export function createPlayer(spawnX: number = SPAWN.x, spawnY: number = SPAWN.y): JumpPlayer {
   return {
     x: spawnX,
@@ -29,7 +30,8 @@ export function createPlayer(spawnX: number = SPAWN.x, spawnY: number = SPAWN.y)
   };
 }
 
-/** Resetta il giocatore allo spawn iniziale (caduta fuori dalla mappa). */
+
+
 export function resetPlayerToSpawn(player: JumpPlayer) {
   const p = createPlayer();
   Object.assign(player, p);
@@ -37,6 +39,7 @@ export function resetPlayerToSpawn(player: JumpPlayer) {
   player.screenShakeSeconds = 0.45;
   player.screenShakeIntensity = 0.18;
 }
+
 
 export function chargeRatio(player: JumpPlayer): number {
   return Math.max(0, Math.min(1, player.chargeSeconds / PLAYER.maxChargeSeconds));

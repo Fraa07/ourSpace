@@ -1,4 +1,6 @@
 
+
+
 import { MAP_HEIGHT, PHYSICS, PLAYER, ROOM } from "./constants";
 import { getPlatformsInRange, getPositionedPlatforms, SPAWN } from "./map";
 import { findPlatform, horizontalOverlap, overlaps, platformSurfaceY } from "./platforms";
@@ -14,11 +16,14 @@ type PreviousBody = {
   right: number;
 };
 
+
 function signDirection(value: number): -1 | 0 | 1 {
   if (value < -PHYSICS.inputDeadZone) return -1;
   if (value > PHYSICS.inputDeadZone) return 1;
   return 0;
 }
+
+
 
 function launch(player: JumpPlayer, direction: -1 | 0 | 1, chargeSeconds: number) {
   const ratio = Math.max(0, Math.min(1, chargeSeconds / PLAYER.maxChargeSeconds));
@@ -40,6 +45,8 @@ function launch(player: JumpPlayer, direction: -1 | 0 | 1, chargeSeconds: number
 
   if (direction !== 0) player.facing = direction;
 }
+
+
 
 function applyInput(player: JumpPlayer, input: PlayerInput, dt: number) {
   const jumpPressed = input.jumpHeld && !player.previousJumpHeld;
@@ -85,6 +92,7 @@ function applyInput(player: JumpPlayer, input: PlayerInput, dt: number) {
   player.previousJumpHeld = input.jumpHeld;
 }
 
+
 function updateTimers(player: JumpPlayer, dt: number) {
   player.landedSeconds = Math.max(0, player.landedSeconds - dt);
   player.screenShakeSeconds = Math.max(0, player.screenShakeSeconds - dt);
@@ -114,6 +122,7 @@ function movingDeltaY(platform: PositionedPlatform, previousPlatforms: Positione
   return platform.y - prev.y;
 }
 
+
 function carryGroundedPlayer(
   player: JumpPlayer,
   platforms: PositionedPlatform[],
@@ -125,6 +134,7 @@ function carryGroundedPlayer(
   player.x += movingDeltaX(platform, previousPlatforms);
   player.y += movingDeltaY(platform, previousPlatforms);
 }
+
 
 function resolveHorizontal(
   player: JumpPlayer,
@@ -164,6 +174,7 @@ function resolveHorizontal(
   }
 }
 
+
 function land(player: JumpPlayer, platform: PositionedPlatform, surfaceY: number) {
   player.y = surfaceY - PLAYER.height;
   player.vy = 0;
@@ -187,6 +198,7 @@ function land(player: JumpPlayer, platform: PositionedPlatform, surfaceY: number
   player.fallStartY = null;
   player.isFalling = false;
 }
+
 
 function resolveVertical(
   player: JumpPlayer,
@@ -275,7 +287,7 @@ function applyGravity(player: JumpPlayer, dt: number) {
   player.vy = Math.min(PLAYER.terminalVelocity, player.vy + PLAYER.gravity * dt);
 }
 
-// flying input removed
+
 
 function applyWorldBounds(player: JumpPlayer) {
   if (player.y < -PLAYER.height * 2) {
@@ -303,7 +315,7 @@ export function updatePlayer(
 
   updateTimers(player, dt);
 
-  // flying input removed
+  
 
   applyInput(player, input, dt);
   applyBufferedJump(player, input);

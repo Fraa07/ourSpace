@@ -1,4 +1,6 @@
 
+
+
 import { IncomingMsg, OutgoingMsg } from "../../server";
 import { Player } from "../../common";
 import { UserInput } from "../../client/user-input";
@@ -7,8 +9,10 @@ import { PHYSICS, PLAYER, SPRITE_SHEET } from "./constants";
 import { drawGame } from "./renderer";
 import { createPlayer } from "./player";
 import { FLAG, SPAWN } from "./map";
+import { overlaps } from "./platforms";
 import { updatePlayer } from "./physics";
 import { JumpPlayer, PlayerInput } from "./types";
+
 
 type PolloClientMsg = {
   kind: "input";
@@ -16,6 +20,7 @@ type PolloClientMsg = {
   moveDirectionY: number;
   jumpHeld: boolean;
 };
+
 
 type PolloServerMsg = {
   players: Record<string, JumpPlayer>;
@@ -27,19 +32,6 @@ type PolloServerMsg = {
 
 const WIN_DISPLAY_SECONDS = 5;
 
-function overlaps(
-  ax: number,
-  ay: number,
-  aw: number,
-  ah: number,
-  bx: number,
-  by: number,
-  bw: number,
-  bh: number,
-) {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-}
-
 function readInput(payload: PolloClientMsg | any): PlayerInput | null {
   if (!payload || payload.kind !== "input") return null;
   return {
@@ -49,9 +41,7 @@ function readInput(payload: PolloClientMsg | any): PlayerInput | null {
   };
 }
 
-function defaultInput(): PlayerInput {
-  return { moveDirectionX: 0, moveDirectionY: 0, jumpHeld: false };
-}
+const DEFAULT_INPUT: PlayerInput = { moveDirectionX: 0, moveDirectionY: 0, jumpHeld: false };
 
 export class PolloAMollaServer extends GameServer {
   private players: Record<string, JumpPlayer> = {};
@@ -61,6 +51,7 @@ export class PolloAMollaServer extends GameServer {
   private winnerId: string | null = null;
   private winSecondsRemaining = 0;
 
+  
   init(players: Record<string, unknown>) {
     this.players = {};
     this.inputs = {};
@@ -73,10 +64,11 @@ export class PolloAMollaServer extends GameServer {
       const player = createPlayer(SPAWN.x + index * 0.4, SPAWN.y);
       player.facing = index % 2 === 0 ? 1 : -1;
       this.players[id] = player;
-      this.inputs[id] = defaultInput();
+      this.inputs[id] = DEFAULT_INPUT;
     });
   }
 
+  
   tick(incomingMessages: IncomingMsg[], dt: number): OutgoingMsg[] {
     const stepSeconds = Math.min(dt, PHYSICS.maxStepSeconds);
     this.timeSeconds += stepSeconds;
@@ -89,12 +81,14 @@ export class PolloAMollaServer extends GameServer {
         }
       });
 
+      
       Object.keys(this.players).forEach((id) => {
         const player = this.players[id];
-        const input = this.inputs[id] ?? defaultInput();
+        const input = this.inputs[id] ?? DEFAULT_INPUT;
         updatePlayer(player, input, stepSeconds, this.timeSeconds);
       });
 
+      
       for (const [id, player] of Object.entries(this.players)) {
         if (overlaps(player.x, player.y, PLAYER.width, PLAYER.height, FLAG.x, FLAG.y, FLAG.w, FLAG.h)) {
           this.gameOver = true;
@@ -125,6 +119,7 @@ export class PolloAMollaServer extends GameServer {
   }
 }
 
+
 export class PolloAMollaClient extends GameClient {
   private players: Record<string, JumpPlayer> | null = null;
   private lobbyPlayers: Record<string, Player> = {};
@@ -136,12 +131,11 @@ export class PolloAMollaClient extends GameClient {
   private winnerId: string | null = null;
   private winSecondsRemaining = 0;
 
-  private prevPlayerState: Record<string, { y: number; onGround: boolean; vy: number }> = {};
-
   constructor(userInput: UserInput, myId: string) {
     super(userInput, myId);
   }
 
+  
   async init(players: Record<string, unknown>) {
     this.lobbyPlayers = players as Record<string, Player>;
     await Promise.all([
@@ -153,24 +147,12 @@ export class PolloAMollaClient extends GameClient {
     return Promise.resolve();
   }
 
+  
   draw(ctx: CanvasRenderingContext2D, dt: number) {
     if (this.userInput.moveDirectionY < 0) this.started = true;
     if (this.players === null) return;
 
     this.timeSeconds += dt;
-
-    for (const [id, player] of Object.entries(this.players)) {
-      const prev = this.prevPlayerState[id];
-      if (prev) {
-        const justLanded = !prev.onGround && player.onGround;
-        // particle spawn removed on land
-      }
-      this.prevPlayerState[id] = {
-        y: player.y,
-        onGround: player.onGround,
-        vy: player.vy,
-      };
-    }
 
     drawGame(
       ctx,
@@ -190,6 +172,7 @@ export class PolloAMollaClient extends GameClient {
     );
   }
 
+  
   handleMessage(message: PolloServerMsg) {
     this.players = message.players;
     this.timeSeconds = message.timeSeconds;
@@ -198,6 +181,7 @@ export class PolloAMollaClient extends GameClient {
     this.winSecondsRemaining = message.winSecondsRemaining;
   }
 
+  
   flushMessages(): PolloClientMsg[] {
     if (this.gameOver) {
       return [

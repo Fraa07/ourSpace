@@ -3,6 +3,8 @@ import { MAP_HEIGHT, PLAYER, ROOM } from "./constants";
 import { MapSection, Platform, PositionedPlatform } from "./types";
 
 
+
+
 const BASE_Y = MAP_HEIGHT - ROOM.height;
 const SECTION0_LIFT = 4.25;
 
@@ -39,7 +41,7 @@ const section1: MapSection = {
   ],
 };
 
-const S2_Y = S1_Y - ROOM.height; // 18
+const S2_Y = S1_Y - ROOM.height; 
 
 const section2: MapSection = {
   id: 2,
@@ -65,7 +67,7 @@ const section2: MapSection = {
 };
 
 
-const S3_Y = S2_Y - ROOM.height; // 9
+const S3_Y = S2_Y - ROOM.height; 
 
 const section3: MapSection = {
   id: 3,
@@ -84,7 +86,7 @@ const section3: MapSection = {
 
 
 
-const S4_Y = S3_Y - ROOM.height; // 0
+const S4_Y = S3_Y - ROOM.height; 
 
 const section4: MapSection = {
   id: 4,
@@ -101,7 +103,7 @@ const section4: MapSection = {
   ],
 };
 
-const S5_Y = S4_Y - ROOM.height; // -9
+const S5_Y = S4_Y - ROOM.height; 
 
 const section5: MapSection = {
   id: 5,
@@ -118,7 +120,7 @@ const section5: MapSection = {
   ],
 };
 
-const S6_Y = S5_Y - ROOM.height; // -18
+const S6_Y = S5_Y - ROOM.height; 
 
 const section6: MapSection = {
   id: 6,
@@ -135,7 +137,7 @@ const section6: MapSection = {
   ],
 };
 
-const S7_Y = S6_Y - ROOM.height; // -27
+const S7_Y = S6_Y - ROOM.height; 
 
 const section7: MapSection = {
   id: 7,
@@ -181,6 +183,7 @@ export const SPAWN = {
   y: BASE_Y + 8.45 - SECTION0_LIFT - PLAYER.height,
 };
 
+
 export function getPositionedPlatforms(platforms: Platform[], timeSeconds: number): PositionedPlatform[] {
   return platforms.map((platform) => {
     const positioned: PositionedPlatform = {
@@ -202,6 +205,7 @@ export function getPositionedPlatforms(platforms: Platform[], timeSeconds: numbe
   });
 }
 
+
 export function getSectionAtWorldY(worldY: number): MapSection {
   for (const section of MAP_SECTIONS) {
     const top = section.worldYBottom - section.height;
@@ -210,6 +214,7 @@ export function getSectionAtWorldY(worldY: number): MapSection {
   if (worldY < MAP_SECTIONS[0].worldYBottom - MAP_SECTIONS[0].height) return MAP_SECTIONS[0];
   return MAP_SECTIONS[MAP_SECTIONS.length - 1];
 }
+
 
 export function getPlatformsInRange(minY: number, maxY: number): Platform[] {
   const margin = 2;

@@ -1,5 +1,7 @@
 
 
+
+
 import {
   COLORS,
   MAP_HEIGHT,
@@ -18,13 +20,14 @@ import {
 } from "./map";
 import { JumpPlayer, Platform, PositionedPlatform } from "./types";
 
-// particles removed
+
 
 type View = {
   scale: number;
   offsetX: number;
   cameraY: number;
 };
+
 
 function worldToScreenY(worldY: number, view: View, screenH: number): number {
   return (worldY - view.cameraY) * view.scale + screenH * 0.5;
@@ -36,6 +39,8 @@ function worldToScreenX(worldX: number, view: View): number {
 
 let smoothCameraY = -1;
 const CAMERA_LERP = 8;
+
+
 
 function computeView(
   screenW: number,
@@ -53,6 +58,7 @@ function computeView(
 
   return { scale, offsetX, cameraY: targetCameraY };
 }
+
 
 function drawBackground(
   ctx: CanvasRenderingContext2D,
@@ -151,6 +157,7 @@ function drawSlope(
   ctx.stroke();
 }
 
+
 function drawPlatform(
   ctx: CanvasRenderingContext2D,
   view: View,
@@ -205,6 +212,8 @@ function spriteFrame(player: JumpPlayer) {
   if (player.landedSeconds > 0) return SPRITE_SHEET.frames.land;
   return SPRITE_SHEET.frames.idle;
 }
+
+
 
 function drawPlayer(
   ctx: CanvasRenderingContext2D,
@@ -300,7 +309,8 @@ function drawPlayerName(
   ctx.restore();
 }
 
-// particles drawing removed
+
+
 
 function drawHud(
   ctx: CanvasRenderingContext2D,
@@ -372,6 +382,8 @@ function drawVictoryOverlay(
   }
 }
 
+
+
 export function drawGame(
   ctx: CanvasRenderingContext2D,
   screenW: number,
@@ -391,7 +403,7 @@ export function drawGame(
   const me = players[myId];
   if (!me) return;
 
-  // particles removed
+  
 
   const view = computeView(screenW, screenH, me.y, dt);
 
@@ -433,7 +445,7 @@ export function drawGame(
     }
   }
 
-  // particles removed
+  
 
   if (me.screenShakeSeconds > 0) {
     ctx.restore();
